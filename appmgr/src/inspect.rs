@@ -193,3 +193,301 @@ pub async fn print_instructions<P: AsRef<Path>>(path: P) -> Result<(), Error> {
 
     Ok(())
 }
+
+pub mod commands {
+    use clap::ArgMatches;
+    use futures::{future::LocalBoxFuture, FutureExt};
+
+    use crate::api::{Api, Argument};
+    use crate::{Error, ResultExt};
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct Path;
+    impl Argument for Path {
+        fn name(&self) -> &'static str {
+            "PATH"
+        }
+        fn help(&self) -> Option<&'static str> {
+            Some("Path to the s9pk file to inspect")
+        }
+        fn required(&self) -> bool {
+            true
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct Json;
+    impl Argument for Json {
+        fn name(&self) -> &'static str {
+            "json"
+        }
+        fn conflicts_with(&self) -> &'static [&'static str] {
+            &["yaml"]
+        }
+        fn required_unless(&self) -> Option<&'static str> {
+            Some(Yaml.name())
+        }
+        fn long(&self) -> Option<&'static str> {
+            Some("json")
+        }
+        fn short(&self) -> Option<&'static str> {
+            Some("j")
+        }
+        fn help(&self) -> Option<&'static str> {
+            Some("Output as JSON")
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct Pretty;
+    impl Argument for Pretty {
+        fn name(&self) -> &'static str {
+            "pretty"
+        }
+        fn requires(&self) -> Option<&'static str> {
+            Some(Json.name())
+        }
+        fn long(&self) -> Option<&'static str> {
+            Some("pretty")
+        }
+        fn short(&self) -> Option<&'static str> {
+            Some("p")
+        }
+        fn help(&self) -> Option<&'static str> {
+            Some("Pretty print output")
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct Yaml;
+    impl Argument for Yaml {
+        fn name(&self) -> &'static str {
+            "yaml"
+        }
+        fn conflicts_with(&self) -> &'static [&'static str] {
+            &["json"]
+        }
+        fn required_unless(&self) -> Option<&'static str> {
+            Some(Json.name())
+        }
+        fn long(&self) -> Option<&'static str> {
+            Some("yaml")
+        }
+        fn short(&self) -> Option<&'static str> {
+            Some("y")
+        }
+        fn help(&self) -> Option<&'static str> {
+            Some("Output as YAML")
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct IncludeManifest;
+    impl Argument for IncludeManifest {
+        fn name(&self) -> &'static str {
+            "include-manifest"
+        }
+        fn conflicts_with(&self) -> &'static [&'static str] {
+            &["only-manifest", "only-config"]
+        }
+        fn long(&self) -> Option<&'static str> {
+            Some("include-manifest")
+        }
+        fn short(&self) -> Option<&'static str> {
+            Some("m")
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct IncludeConfig;
+    impl Argument for IncludeConfig {
+        fn name(&self) -> &'static str {
+            "include-config"
+        }
+        fn conflicts_with(&self) -> &'static [&'static str] {
+            &["only-manifest", "only-config"]
+        }
+        fn long(&self) -> Option<&'static str> {
+            Some("include-config")
+        }
+        fn short(&self) -> Option<&'static str> {
+            Some("c")
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct OnlyManifest;
+    impl Argument for OnlyManifest {
+        fn name(&self) -> &'static str {
+            "only-manifest"
+        }
+        fn conflicts_with(&self) -> &'static [&'static str] {
+            &["include-manifest", "include-config", "only-config"]
+        }
+        fn long(&self) -> Option<&'static str> {
+            Some("only-manifest")
+        }
+        fn short(&self) -> Option<&'static str> {
+            Some("M")
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct OnlyConfig;
+    impl Argument for OnlyConfig {
+        fn name(&self) -> &'static str {
+            "only-config"
+        }
+        fn conflicts_with(&self) -> &'static [&'static str] {
+            &["include-manifest", "include-config", "only-manifest"]
+        }
+        fn long(&self) -> Option<&'static str> {
+            Some("only-config")
+        }
+        fn short(&self) -> Option<&'static str> {
+            Some("C")
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct Info;
+    impl Info {
+        async fn clap_impl<'a>(&'a self, matches: &'a ArgMatches<'a>) -> Result<(), Error> {
+            let path = matches.value_of(Path.name()).unwrap();
+            let info = crate::inspect::info_full(
+                path,
+                matches.is_present(IncludeManifest.name())
+                    || matches.is_present(OnlyManifest.name()),
+                matches.is_present(IncludeConfig.name()) || matches.is_present(OnlyConfig.name()),
+            )
+            .await?;
+
+            if matches.is_present(Json.name()) {
+                if matches.is_present(Pretty.name()) {
+                    if matches.is_present(OnlyManifest.name()) {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&info.manifest)
+                                .with_code(crate::error::SERDE_ERROR)?
+                        );
+                    } else if matches.is_present(OnlyConfig.name()) {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&info.config)
+                                .with_code(crate::error::SERDE_ERROR)?
+                        );
+                    } else {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&info)
+                                .with_code(crate::error::SERDE_ERROR)?
+                        );
+                    }
+                } else {
+                    if matches.is_present(OnlyManifest.name()) {
+                        println!(
+                            "{}",
+                            serde_json::to_string(&info.manifest)
+                                .with_code(crate::error::SERDE_ERROR)?
+                        );
+                    } else if matches.is_present(OnlyConfig.name()) {
+                        println!(
+                            "{}",
+                            serde_json::to_string(&info.config)
+                                .with_code(crate::error::SERDE_ERROR)?
+                        );
+                    } else {
+                        println!(
+                            "{}",
+                            serde_json::to_string(&info).with_code(crate::error::SERDE_ERROR)?
+                        );
+                    }
+                }
+            } else if matches.is_present(Yaml.name()) {
+                if matches.is_present(OnlyManifest.name()) {
+                    println!(
+                        "{}",
+                        serde_yaml::to_string(&info.manifest)
+                            .with_code(crate::error::SERDE_ERROR)?
+                    );
+                } else if matches.is_present(OnlyConfig.name()) {
+                    println!(
+                        "{}",
+                        serde_yaml::to_string(&info.config).with_code(crate::error::SERDE_ERROR)?
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        serde_yaml::to_string(&info).with_code(crate::error::SERDE_ERROR)?
+                    );
+                }
+            }
+            Ok(())
+        }
+    }
+    impl Api for Info {
+        fn name(&self) -> &'static str {
+            "info"
+        }
+        fn clap_impl<'a>(
+            &'a self,
+            matches: &'a ArgMatches,
+        ) -> Option<LocalBoxFuture<'a, Result<(), Error>>> {
+            Some(self.clap_impl(matches).boxed_local())
+        }
+        fn about(&self) -> Option<&'static str> {
+            Some("Prints information about an application package")
+        }
+        fn args(&self) -> &'static [&'static dyn Argument] {
+            &[
+                &Path,
+                &Json,
+                &Pretty,
+                &Yaml,
+                &IncludeManifest,
+                &IncludeConfig,
+                &OnlyManifest,
+                &OnlyConfig,
+            ]
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct Instructions;
+    impl Api for Instructions {
+        fn name(&self) -> &'static str {
+            "instructions"
+        }
+        fn clap_impl<'a>(
+            &'a self,
+            matches: &'a ArgMatches<'a>,
+        ) -> Option<LocalBoxFuture<'a, Result<(), Error>>> {
+            Some(
+                super::print_instructions(std::path::Path::new(
+                    matches.value_of(Path.name()).unwrap(),
+                ))
+                .boxed_local(),
+            )
+        }
+        fn about(&self) -> Option<&'static str> {
+            Some("Prints instructions for an application package")
+        }
+        fn args(&self) -> &'static [&'static dyn Argument] {
+            &[&Path]
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct Inspect;
+    impl Api for Inspect {
+        fn name(&self) -> &'static str {
+            "inspect"
+        }
+        fn about(&self) -> Option<&'static str> {
+            Some("Inspects an application package")
+        }
+        fn commands(&self) -> &'static [&'static dyn Api] {
+            &[&Info, &Instructions]
+        }
+    }
+}

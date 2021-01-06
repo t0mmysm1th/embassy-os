@@ -22,18 +22,14 @@ pub enum Error {
     InvalidOutputPath(String),
 }
 
-pub async fn pack(path: &str, output: &str) -> Result<(), failure::Error> {
+pub async fn pack(path: &str, output: Option<&str>) -> Result<(), failure::Error> {
     let path = Path::new(path.trim_end_matches("/"));
-    let output = Path::new(output);
     log::info!(
-        "Starting pack of {} to {}.",
+        "Starting pack of {}.",
         path.file_name()
             .and_then(|a| a.to_str())
             .ok_or_else(|| Error::InvalidDirectoryName(format!("{}", path.display())))?,
-        output.display(),
     );
-    let out_file = tokio::fs::File::create(output).await?;
-    let mut out = tar::Builder::new(out_file);
     log::info!("Reading {}/manifest.yaml.", path.display());
     let manifest: Manifest = crate::util::from_yaml_async_reader(
         tokio::fs::File::open(path.join("manifest.yaml"))
@@ -41,6 +37,13 @@ pub async fn pack(path: &str, output: &str) -> Result<(), failure::Error> {
             .with_context(|e| format!("{}: manifest.yaml", e))?,
     )
     .await?;
+    let manifest_latest = manifest.clone().into_latest();
+    let output = output
+        .map(Path::new)
+        .map(Cow::Borrowed)
+        .unwrap_or_else(|| Cow::Owned(Path::new(&manifest_latest.id).with_extension("s9pk")));
+    let out_file = tokio::fs::File::create(output).await?;
+    let mut out = tar::Builder::new(out_file);
     log::info!("Writing manifest to archive.");
     let bin_manifest = serde_cbor::to_vec(&manifest)?;
     let mut manifest_header = tar::Header::new_gnu();
@@ -51,7 +54,7 @@ pub async fn pack(path: &str, output: &str) -> Result<(), failure::Error> {
         std::io::Cursor::new(bin_manifest),
     )
     .await?;
-    let manifest = manifest.into_latest();
+    let manifest = manifest_latest;
     ensure!(
         crate::version::Current::new()
             .semver()
@@ -378,4 +381,111 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
     };
 
     Ok(())
+}
+
+pub mod commands {
+    use clap::ArgMatches;
+    use futures::{future::LocalBoxFuture, FutureExt, TryFutureExt};
+
+    use crate::api::{Api, Argument};
+    use crate::error::Error;
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct Output;
+    impl Argument for Output {
+        fn name(&self) -> &'static str {
+            "output"
+        }
+        fn short(&self) -> Option<&'static str> {
+            Some("o")
+        }
+        fn long(&self) -> Option<&'static str> {
+            Some("output")
+        }
+        fn help(&self) -> Option<&'static str> {
+            Some("Destination for application package")
+        }
+        fn takes_value(&self) -> bool {
+            true
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct PackPath;
+    impl Argument for PackPath {
+        fn name(&self) -> &'static str {
+            "PATH"
+        }
+        fn help(&self) -> Option<&'static str> {
+            Some("Path to the folder containing the application data")
+        }
+        fn required(&self) -> bool {
+            true
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct Pack;
+    impl Api for Pack {
+        fn name(&self) -> &'static str {
+            "pack"
+        }
+        fn clap_impl<'a>(
+            &self,
+            matches: &'a ArgMatches,
+        ) -> Option<LocalBoxFuture<'a, Result<(), Error>>> {
+            Some(
+                super::pack(
+                    matches.value_of("PATH").unwrap(),
+                    matches.value_of("output"),
+                )
+                .map_err(Error::from)
+                .boxed_local(),
+            )
+        }
+        fn about(&self) -> Option<&'static str> {
+            Some("Creates a new application package")
+        }
+        fn args(&self) -> &'static [&'static dyn Argument] {
+            &[&Output, &PackPath]
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct VerifyPath;
+    impl Argument for VerifyPath {
+        fn name(&self) -> &'static str {
+            "PATH"
+        }
+        fn help(&self) -> Option<&'static str> {
+            Some("Path to the s9pk file to verify")
+        }
+        fn required(&self) -> bool {
+            true
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct Verify;
+    impl Api for Verify {
+        fn name(&self) -> &'static str {
+            "verify"
+        }
+        fn clap_impl<'a>(
+            &self,
+            matches: &'a ArgMatches,
+        ) -> Option<LocalBoxFuture<'a, Result<(), Error>>> {
+            Some(
+                super::verify(matches.value_of(VerifyPath.name()).unwrap())
+                    .map_err(Error::from)
+                    .boxed_local(),
+            )
+        }
+        fn about(&self) -> Option<&'static str> {
+            Some("Verifies an application package")
+        }
+        fn args(&self) -> &'static [&'static dyn Argument] {
+            &[&VerifyPath]
+        }
+    }
 }

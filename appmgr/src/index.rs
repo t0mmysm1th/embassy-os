@@ -131,3 +131,35 @@ pub async fn index<P: AsRef<Path>>(dir: P) -> Result<AppIndex, Error> {
     index_rec(&mut idx, dir_path).await?;
     Ok(idx)
 }
+
+pub mod commands {
+    use crate::api::{Api, Argument};
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct Path;
+    impl Argument for Path {
+        fn name(&self) -> &'static str {
+            "PATH"
+        }
+        fn help(&self) -> Option<&'static str> {
+            Some("Path to the directory to index")
+        }
+        fn required(&self) -> bool {
+            true
+        }
+    }
+
+    #[derive(Debug, Default, Clone, Copy)]
+    pub struct Index;
+    impl Api for Index {
+        fn name(&self) -> &'static str {
+            "index"
+        }
+        fn about(&self) -> Option<&'static str> {
+            Some("Indexes all s9pk files in a directory")
+        }
+        fn args(&self) -> &'static [&'static dyn Argument] {
+            &[&Path]
+        }
+    }
+}

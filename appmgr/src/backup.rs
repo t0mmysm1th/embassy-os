@@ -82,11 +82,16 @@ pub async fn create_backup<P: AsRef<Path>>(
         let ignore_path = volume_path.join(".backupignore");
         if ignore_path.is_file() {
             use tokio::io::AsyncBufReadExt;
-            tokio::io::BufReader::new(tokio::fs::File::open(ignore_path).await?)
-                .lines()
-                .try_filter(|l| futures::future::ready(!l.is_empty()))
-                .try_collect()
-                .await?
+            let mut lines =
+                tokio::io::BufReader::new(tokio::fs::File::open(ignore_path).await?).lines();
+            (async_stream::stream! {
+                while let Some(line) = lines.next_line().await.transpose() {
+                    yield line;
+                }
+            })
+            .try_filter(|l| futures::future::ready(!l.is_empty()))
+            .try_collect()
+            .await?
         } else {
             Vec::new()
         }

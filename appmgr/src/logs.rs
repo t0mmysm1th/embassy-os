@@ -3,8 +3,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
 use failure::ResultExt as _;
-use futures::stream::StreamExt;
-use futures::stream::TryStreamExt;
+use futures::stream::{StreamExt, TryStreamExt};
 use itertools::Itertools;
 
 use crate::util::PersistencePath;
@@ -164,10 +163,15 @@ pub async fn notifications(id: &str) -> Result<Vec<Notification>, Error> {
         .await
         .with_context(|e| format!("{}: {}", p.display(), e))
         .with_code(crate::error::FILESYSTEM_ERROR)?;
-    tokio::io::AsyncBufReadExt::lines(tokio::io::BufReader::new(f))
-        .map(|a| a.map_err(From::from).and_then(|a| a.parse()))
-        .try_collect()
-        .await
+    let mut lines = tokio::io::AsyncBufReadExt::lines(tokio::io::BufReader::new(f));
+    (async_stream::stream! {
+        while let Some(line) = lines.next_line().await.transpose() {
+            yield line;
+        }
+    })
+    .map(|a| a.map_err(From::from).and_then(|a| a.parse()))
+    .try_collect()
+    .await
 }
 
 pub async fn stats(id: &str) -> Result<serde_yaml::Value, Error> {
