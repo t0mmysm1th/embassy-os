@@ -134,7 +134,6 @@ pub async fn pack(path: &str, output: Option<&str>) -> Result<(), failure::Error
         }
     }
     out.into_inner().await?;
-
     Ok(())
 }
 
@@ -385,7 +384,7 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
 
 pub mod commands {
     use clap::ArgMatches;
-    use futures::{future::LocalBoxFuture, FutureExt, TryFutureExt};
+    use futures::{future::BoxFuture, FutureExt, TryFutureExt};
 
     use crate::api::{Api, Argument};
     use crate::error::Error;
@@ -433,14 +432,14 @@ pub mod commands {
         fn clap_impl<'a>(
             &self,
             matches: &'a ArgMatches,
-        ) -> Option<LocalBoxFuture<'a, Result<(), Error>>> {
+        ) -> Option<BoxFuture<'a, Result<(), Error>>> {
             Some(
                 super::pack(
                     matches.value_of("PATH").unwrap(),
                     matches.value_of("output"),
                 )
                 .map_err(Error::from)
-                .boxed_local(),
+                .boxed(),
             )
         }
         fn about(&self) -> Option<&'static str> {
@@ -474,11 +473,11 @@ pub mod commands {
         fn clap_impl<'a>(
             &self,
             matches: &'a ArgMatches,
-        ) -> Option<LocalBoxFuture<'a, Result<(), Error>>> {
+        ) -> Option<BoxFuture<'a, Result<(), Error>>> {
             Some(
                 super::verify(matches.value_of(VerifyPath.name()).unwrap())
                     .map_err(Error::from)
-                    .boxed_local(),
+                    .boxed(),
             )
         }
         fn about(&self) -> Option<&'static str> {

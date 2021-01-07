@@ -3,6 +3,7 @@
 use std::borrow::Cow;
 use std::path::Path;
 
+use appmgrlib as lib;
 use appmgrlib::version::VersionT;
 use appmgrlib::*;
 
@@ -21,19 +22,8 @@ async fn main() {
 }
 
 async fn inner_main() -> Result<(), Error> {
-    simple_logging::log_to_stderr(log::LevelFilter::Info);
-    #[cfg(not(feature = "portable"))]
-    {
-        if !Path::new(crate::PERSISTENCE_DIR).join(".lock").exists() {
-            tokio::fs::create_dir_all(crate::PERSISTENCE_DIR).await?;
-            tokio::fs::File::create(Path::new(crate::PERSISTENCE_DIR).join(".lock")).await?;
-        }
-    }
-    let q = *QUIET.read().await;
-    *QUIET.write().await = true;
-    #[cfg(not(feature = "portable"))]
-    init().await?;
-    *QUIET.write().await = q;
+    #[cfg(feature = "portable")]
+    lib::api::run_cli(&lib::api::Portable).await;
     let version = format!("{}", crate::version::Current::new().semver());
     let git_version =
         git_version::git_version!(args = ["--always", "--abbrev=40", "--dirty=-modified"]);

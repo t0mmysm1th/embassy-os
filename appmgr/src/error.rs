@@ -11,6 +11,7 @@ pub const VERSION_INCOMPATIBLE: i32 = 8;
 pub const NETWORK_ERROR: i32 = 9;
 pub const REGISTRY_ERROR: i32 = 10;
 pub const SERDE_ERROR: i32 = 11;
+pub const UNRECOGNIZED_COMMAND: i32 = 12;
 
 #[derive(Debug, Fail)]
 #[fail(display = "{}", _0)]

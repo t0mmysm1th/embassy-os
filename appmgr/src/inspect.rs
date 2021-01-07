@@ -196,7 +196,7 @@ pub async fn print_instructions<P: AsRef<Path>>(path: P) -> Result<(), Error> {
 
 pub mod commands {
     use clap::ArgMatches;
-    use futures::{future::LocalBoxFuture, FutureExt};
+    use futures::{future::BoxFuture, FutureExt};
 
     use crate::api::{Api, Argument};
     use crate::{Error, ResultExt};
@@ -432,8 +432,8 @@ pub mod commands {
         fn clap_impl<'a>(
             &'a self,
             matches: &'a ArgMatches,
-        ) -> Option<LocalBoxFuture<'a, Result<(), Error>>> {
-            Some(self.clap_impl(matches).boxed_local())
+        ) -> Option<BoxFuture<'a, Result<(), Error>>> {
+            Some(self.clap_impl(matches).boxed())
         }
         fn about(&self) -> Option<&'static str> {
             Some("Prints information about an application package")
@@ -461,12 +461,12 @@ pub mod commands {
         fn clap_impl<'a>(
             &'a self,
             matches: &'a ArgMatches<'a>,
-        ) -> Option<LocalBoxFuture<'a, Result<(), Error>>> {
+        ) -> Option<BoxFuture<'a, Result<(), Error>>> {
             Some(
                 super::print_instructions(std::path::Path::new(
                     matches.value_of(Path.name()).unwrap(),
                 ))
-                .boxed_local(),
+                .boxed(),
             )
         }
         fn about(&self) -> Option<&'static str> {
