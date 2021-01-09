@@ -3,7 +3,7 @@ authors = ["Dr. BoneZ <drbonez@start9labs.com>"]
 description = "Manage applications installed on the Start9 Embassy"
 edition = "2018"
 name = "appmgr"
-version = "0.2.8"
+version = "0.3.0"
 
 [lib]
 name = "appmgrlib"

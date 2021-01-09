@@ -23,7 +23,7 @@ async fn main() {
 
 async fn inner_main() -> Result<(), Error> {
     #[cfg(feature = "portable")]
-    lib::api::run_cli(&lib::api::Portable).await;
+    return Ok(lib::api::run_cli(&lib::api::Portable).await);
     let version = format!("{}", crate::version::Current::new().semver());
     let git_version =
         git_version::git_version!(args = ["--always", "--abbrev=40", "--dirty=-modified"]);
