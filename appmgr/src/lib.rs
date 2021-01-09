@@ -1,5 +1,7 @@
 #[macro_use]
-extern crate failure;
+extern crate anyhow;
+#[macro_use]
+extern crate thiserror;
 #[macro_use]
 extern crate pest_derive;
 
@@ -12,6 +14,7 @@ pub const BACKUP_MOUNT_POINT: &'static str = "/mnt/backup_drive";
 pub const BACKUP_DIR: &'static str = "Embassy Backups";
 pub const BUFFER_SIZE: usize = 1024;
 pub const HOST_IP: [u8; 4] = [172, 18, 0, 1];
+pub const PORT: u16 = 5960;
 
 lazy_static::lazy_static! {
     pub static ref REGISTRY_URL: String = std::env::var("REGISTRY_URL").unwrap_or_else(|_| "https://registry.start9labs.com".to_owned());

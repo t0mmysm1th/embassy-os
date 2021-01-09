@@ -24,10 +24,10 @@ impl VersionT for Version {
                 reqwest::get(&format!("{}/torrc?spec==0.1.1", &*crate::SYS_REGISTRY_URL))
                     .compat()
                     .await
-                    .with_context(|e| format!("GET {}/torrc: {}", &*crate::SYS_REGISTRY_URL, e))
+                    .with_context(|| format!("GET {}/torrc", &*crate::SYS_REGISTRY_URL))
                     .with_code(crate::error::NETWORK_ERROR)?
                     .error_for_status()
-                    .with_context(|e| format!("GET {}/torrc: {}", &*crate::SYS_REGISTRY_URL, e))
+                    .with_context(|| format!("GET {}/torrc", &*crate::SYS_REGISTRY_URL))
                     .with_code(crate::error::REGISTRY_ERROR)?
                     .bytes_stream()
                     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
@@ -59,7 +59,7 @@ impl VersionT for Version {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(e),
         }
-        .with_context(|e| format!("{}/{}: {}", crate::PERSISTENCE_DIR, crate::SERVICES_YAML, e))
+        .with_context(|| format!("{}/{}", crate::PERSISTENCE_DIR, crate::SERVICES_YAML))
         .with_code(crate::error::FILESYSTEM_ERROR)?;
         crate::tor::reload().await?;
 
@@ -79,10 +79,10 @@ impl VersionT for Version {
                 reqwest::get(&format!("{}/torrc?spec==0.1.0", &*crate::SYS_REGISTRY_URL))
                     .compat()
                     .await
-                    .with_context(|e| format!("GET {}/torrc: {}", &*crate::SYS_REGISTRY_URL, e))
+                    .with_context(|| format!("GET {}/torrc", &*crate::SYS_REGISTRY_URL))
                     .no_code()?
                     .error_for_status()
-                    .with_context(|e| format!("GET {}/torrc: {}", &*crate::SYS_REGISTRY_URL, e))
+                    .with_context(|| format!("GET {}/torrc", &*crate::SYS_REGISTRY_URL))
                     .no_code()?
                     .bytes_stream()
                     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
@@ -101,7 +101,7 @@ impl VersionT for Version {
         if tor_svcs.exists() {
             tokio::fs::remove_file(&tor_svcs)
                 .await
-                .with_context(|e| format!("{}: {}", tor_svcs.display(), e))
+                .with_context(|| format!("{}", tor_svcs.display()))
                 .with_code(crate::error::FILESYSTEM_ERROR)?;
         }
         if !std::process::Command::new("docker")
@@ -188,7 +188,7 @@ mod legacy {
             let name = name_version
                 .split("@")
                 .next()
-                .ok_or_else(|| failure::format_err!("invalid app id"))?;
+                .ok_or_else(|| anyhow!("invalid app id"))?;
             crate::install::download_name(name_version).await?;
             super::remove::remove(name, false).await?;
             crate::install::install_name(name_version, true).await?;

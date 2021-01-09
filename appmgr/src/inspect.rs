@@ -1,7 +1,8 @@
 use std::path::Path;
 
-use failure::ResultExt as _;
+use anyhow::Context;
 use futures::stream::StreamExt;
+use serde::{Deserialize, Serialize};
 use tokio_tar as tar;
 
 use crate::config::{ConfigRuleEntry, ConfigSpec};
@@ -9,7 +10,7 @@ use crate::manifest::{Manifest, ManifestLatest};
 use crate::util::from_cbor_async_reader;
 use crate::version::VersionT;
 use crate::Error;
-use crate::ResultExt as _;
+use crate::ResultExt;
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -22,14 +23,14 @@ pub struct AppInfoFull {
     pub config: Option<AppConfig>,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct AppInfo {
     pub title: String,
     pub version: emver::Version,
 }
 
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct AppConfig {
     pub spec: ConfigSpec,
@@ -45,7 +46,7 @@ pub async fn info_full<P: AsRef<Path>>(
     log::info!("Opening file.");
     let r = tokio::fs::File::open(p)
         .await
-        .with_context(|e| format!("{}: {}", p.display(), e))
+        .with_context(|| format!("{}", p.display()))
         .with_code(crate::error::FILESYSTEM_ERROR)?;
     log::info!("Extracting archive.");
     let mut pkg = tar::Archive::new(r);
@@ -121,7 +122,7 @@ pub async fn print_instructions<P: AsRef<Path>>(path: P) -> Result<(), Error> {
     log::info!("Opening file.");
     let r = tokio::fs::File::open(p)
         .await
-        .with_context(|e| format!("{}: {}", p.display(), e))
+        .with_context(|| format!("{}", p.display()))
         .with_code(crate::error::FILESYSTEM_ERROR)?;
     log::info!("Extracting archive.");
     let mut pkg = tar::Archive::new(r);
@@ -187,7 +188,7 @@ pub async fn print_instructions<P: AsRef<Path>>(path: P) -> Result<(), Error> {
             .await
             .with_code(crate::error::FILESYSTEM_ERROR)?;
     } else {
-        return Err(failure::format_err!("No instructions for {}", p.display()))
+        return Err(anyhow!("No instructions for {}", p.display()))
             .with_code(crate::error::NOT_FOUND);
     }
 
@@ -196,9 +197,9 @@ pub async fn print_instructions<P: AsRef<Path>>(path: P) -> Result<(), Error> {
 
 pub mod commands {
     use clap::ArgMatches;
-    use futures::{future::BoxFuture, FutureExt};
+    use futures::FutureExt;
 
-    use crate::api::{Api, Argument};
+    use crate::api::{Api, Argument, ClapImpl};
     use crate::{Error, ResultExt};
 
     #[derive(Debug, Default, Clone, Copy)]
@@ -431,8 +432,9 @@ pub mod commands {
         }
         fn clap_impl<'a>(
             &'a self,
+            _full_command: &'a [&'a dyn Api],
             matches: &'a ArgMatches,
-        ) -> Option<BoxFuture<'a, Result<(), Error>>> {
+        ) -> ClapImpl<'a> {
             Some(self.clap_impl(matches).boxed())
         }
         fn about(&self) -> Option<&'static str> {
@@ -460,8 +462,9 @@ pub mod commands {
         }
         fn clap_impl<'a>(
             &'a self,
+            _full_command: &'a [&'a dyn Api],
             matches: &'a ArgMatches<'a>,
-        ) -> Option<BoxFuture<'a, Result<(), Error>>> {
+        ) -> ClapImpl<'a> {
             Some(
                 super::print_instructions(std::path::Path::new(
                     matches.value_of(Path.name()).unwrap(),

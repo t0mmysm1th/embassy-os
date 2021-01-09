@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use futures::future::{BoxFuture, FutureExt};
-use linear_map::{set::LinearSet, LinearMap};
+use hashlink::{LinkedHashMap as Map, LinkedHashSet as Set};
 
 use crate::dependencies::{DependencyError, TaggedDependencyError};
 use crate::util::{from_yaml_async_reader, PersistencePath, YamlUpdateHandle};
@@ -28,7 +28,7 @@ pub async fn start_app(name: &str, update_metadata: bool) -> Result<(), Error> {
             crate::dependencies::update_binds(name).await?;
         }
         crate::apps::set_needs_restart(name, false).await?;
-        let mut running = YamlUpdateHandle::<LinearSet<String>>::new_or_default(
+        let mut running = YamlUpdateHandle::<Set<String>>::new_or_default(
             PersistencePath::from_ref("running.yaml"),
         )
         .await?;
@@ -56,8 +56,8 @@ pub async fn stop_app(
     name: &str,
     cascade: bool,
     dry_run: bool,
-) -> Result<LinearMap<String, TaggedDependencyError>, Error> {
-    let mut res = LinearMap::new();
+) -> Result<Map<String, TaggedDependencyError>, Error> {
+    let mut res = Map::new();
     if cascade {
         stop_dependents(name, dry_run, DependencyError::NotRunning, &mut res).await?;
     }
@@ -74,7 +74,7 @@ pub async fn stop_app(
             true,
         )
         .await?;
-        let mut running = YamlUpdateHandle::<LinearSet<String>>::new_or_default(
+        let mut running = YamlUpdateHandle::<Set<String>>::new_or_default(
             PersistencePath::from_ref("running.yaml"),
         )
         .await?;
@@ -101,13 +101,13 @@ pub async fn stop_dependents(
     name: &str,
     dry_run: bool,
     err: DependencyError,
-    res: &mut LinearMap<String, TaggedDependencyError>,
+    res: &mut Map<String, TaggedDependencyError>,
 ) -> Result<(), Error> {
     fn stop_dependents_rec<'a>(
         name: &'a str,
         dry_run: bool,
         err: DependencyError,
-        res: &'a mut LinearMap<String, TaggedDependencyError>,
+        res: &'a mut Map<String, TaggedDependencyError>,
     ) -> BoxFuture<'a, Result<(), Error>> {
         async move {
             for dependent in crate::apps::dependents(name, false).await? {
@@ -141,7 +141,7 @@ pub async fn restart_app(name: &str) -> Result<(), Error> {
             name,
             false,
             crate::dependencies::DependencyError::NotRunning,
-            &mut linear_map::LinearMap::new(),
+            &mut Map::new(),
         )
         .await?;
         return Err(e);

@@ -1,16 +1,17 @@
-use failure::ResultExt as _;
+use anyhow::Context;
 use futures::future::{BoxFuture, FutureExt, OptionFuture};
-use linear_map::{set::LinearSet, LinearMap};
+use hashlink::{LinkedHashMap as Map, LinkedHashSet as Set};
 use rand::SeedableRng;
+use serde::{Deserialize, Serialize};
 
 use crate::dependencies::AppDependencies;
 use crate::manifest::{Manifest, ManifestLatest};
 use crate::util::Apply;
 use crate::util::{from_yaml_async_reader, PersistencePath, YamlUpdateHandle};
 use crate::Error;
-use crate::ResultExt as _;
+use crate::ResultExt;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DockerStatus {
     Running,
@@ -25,7 +26,7 @@ fn not(b: &bool) -> bool {
     !b
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct AppInfo {
     pub title: String,
@@ -70,21 +71,21 @@ pub struct AppInfoFull {
     pub dependencies: Option<AppDependencies>,
 }
 
-pub async fn list_info() -> Result<LinearMap<String, AppInfo>, Error> {
+pub async fn list_info() -> Result<Map<String, AppInfo>, Error> {
     let apps_path = PersistencePath::from_ref("apps.yaml");
     let mut f = match apps_path.maybe_read(false).await.transpose()? {
         Some(a) => a,
-        None => return Ok(LinearMap::new()),
+        None => return Ok(Map::new()),
     };
     from_yaml_async_reader(&mut *f).await
 }
 
-pub async fn list_info_mut() -> Result<YamlUpdateHandle<LinearMap<String, AppInfo>>, Error> {
+pub async fn list_info_mut() -> Result<YamlUpdateHandle<Map<String, AppInfo>>, Error> {
     let apps_path = PersistencePath::from_ref("apps.yaml");
     YamlUpdateHandle::new_or_default(apps_path).await
 }
 
-pub async fn add(id: &str, info: AppInfo) -> Result<(), failure::Error> {
+pub async fn add(id: &str, info: AppInfo) -> Result<(), anyhow::Error> {
     let mut apps = list_info_mut().await?;
     apps.insert(id.to_string(), info);
     apps.commit().await?;
@@ -95,7 +96,7 @@ pub async fn set_configured(id: &str, configured: bool) -> Result<(), Error> {
     let mut apps = list_info_mut().await?;
     let mut app = apps
         .get_mut(id)
-        .ok_or_else(|| failure::format_err!("App Not Installed: {}", id))
+        .ok_or_else(|| anyhow!("App Not Installed: {}", id))
         .with_code(crate::error::NOT_FOUND)?;
     app.configured = configured;
     apps.commit().await?;
@@ -106,7 +107,7 @@ pub async fn set_needs_restart(id: &str, needs_restart: bool) -> Result<(), Erro
     let mut apps = list_info_mut().await?;
     let mut app = apps
         .get_mut(id)
-        .ok_or_else(|| failure::format_err!("App Not Installed: {}", id))
+        .ok_or_else(|| anyhow!("App Not Installed: {}", id))
         .with_code(crate::error::NOT_FOUND)?;
     app.needs_restart = needs_restart;
     apps.commit().await?;
@@ -117,14 +118,14 @@ pub async fn set_recoverable(id: &str, recoverable: bool) -> Result<(), Error> {
     let mut apps = list_info_mut().await?;
     let mut app = apps
         .get_mut(id)
-        .ok_or_else(|| failure::format_err!("App Not Installed: {}", id))
+        .ok_or_else(|| anyhow!("App Not Installed: {}", id))
         .with_code(crate::error::NOT_FOUND)?;
     app.recoverable = recoverable;
     apps.commit().await?;
     Ok(())
 }
 
-pub async fn remove(id: &str) -> Result<(), failure::Error> {
+pub async fn remove(id: &str) -> Result<(), anyhow::Error> {
     let mut apps = list_info_mut().await?;
     apps.remove(id);
     apps.commit().await?;
@@ -170,7 +171,7 @@ pub async fn status(id: &str, remap_crashed: bool) -> Result<AppStatus, Error> {
             }
             "created" | "exited" => DockerStatus::Stopped,
             "paused" => DockerStatus::Paused,
-            _ => Err(format_err!("unknown status: {}", status))?,
+            _ => Err(anyhow!("unknown status: {}", status))?,
         },
     })
 }
@@ -225,18 +226,13 @@ pub async fn config(id: &str) -> Result<AppConfig, Error> {
                 let cfg_path = config.path();
                 tokio::fs::copy(&volume_config, &cfg_path)
                     .await
-                    .with_context(|e| {
-                        format!(
-                            "{}: {} -> {}",
-                            e,
-                            volume_config.display(),
-                            cfg_path.display()
-                        )
+                    .with_context(|| {
+                        format!("{} -> {}", volume_config.display(), cfg_path.display())
                     })
                     .with_code(crate::error::FILESYSTEM_ERROR)?;
                 let mut f = tokio::fs::File::open(&volume_config)
                     .await
-                    .with_context(|e| format!("{}: {}", e, volume_config.display()))
+                    .with_context(|| format!("{}", volume_config.display()))
                     .with_code(crate::error::FILESYSTEM_ERROR)?;
                 match from_yaml_async_reader(&mut f).await {
                     Ok(a) => Some(a),
@@ -274,7 +270,7 @@ pub async fn info(id: &str) -> Result<AppInfo, Error> {
         .await
         .map_err(Error::from)?
         .get(id)
-        .ok_or_else(|| Error::new(failure::format_err!("{} is not installed", id), Some(6)))
+        .ok_or_else(|| Error::new(anyhow!("{} is not installed", id), crate::error::NOT_FOUND))
         .map(Clone::clone)
 }
 
@@ -317,7 +313,7 @@ pub async fn dependencies(id_version: &str, local_only: bool) -> Result<AppDepen
         .next()
         .map(|a| a.parse::<emver::VersionRange>())
         .transpose()
-        .with_context(|e| format!("Failed to Parse Version Requirement: {}", e))
+        .context("Failed to Parse Version Requirement")
         .no_code()?
         .unwrap_or_else(emver::VersionRange::any);
     let (manifest, config_info) = match list_info().await?.get(id) {
@@ -328,10 +324,7 @@ pub async fn dependencies(id_version: &str, local_only: bool) -> Result<AppDepen
             crate::registry::manifest(id, &version_range),
             crate::registry::config(id, &version_range)
         )?,
-        _ => {
-            return Err(failure::format_err!("App Not Installed: {}", id))
-                .with_code(crate::error::NOT_FOUND)
-        }
+        _ => return Err(anyhow!("App Not Installed: {}", id)).with_code(crate::error::NOT_FOUND),
     };
     let config = if let Some(cfg) = config_info.config {
         cfg
@@ -344,11 +337,11 @@ pub async fn dependencies(id_version: &str, local_only: bool) -> Result<AppDepen
     crate::dependencies::check_dependencies(manifest, &config, &config_info.spec).await
 }
 
-pub async fn dependents(id: &str, transitive: bool) -> Result<LinearSet<String>, Error> {
+pub async fn dependents(id: &str, transitive: bool) -> Result<Set<String>, Error> {
     pub fn dependents_rec<'a>(
         id: &'a str,
         transitive: bool,
-        res: &'a mut LinearSet<String>,
+        res: &'a mut Set<String>,
     ) -> BoxFuture<'a, Result<(), Error>> {
         async move {
             for (app_id, _) in list_info().await? {
@@ -378,7 +371,7 @@ pub async fn dependents(id: &str, transitive: bool) -> Result<LinearSet<String>,
         }
         .boxed()
     }
-    let mut res = LinearSet::new();
+    let mut res = Set::new();
     dependents_rec(id, transitive, &mut res).await?;
     Ok(res)
 }
@@ -388,7 +381,7 @@ pub async fn list(
     with_manifest: bool,
     with_config: bool,
     with_dependencies: bool,
-) -> Result<LinearMap<String, AppInfoFull>, Error> {
+) -> Result<Map<String, AppInfoFull>, Error> {
     let info = list_info().await?;
     futures::future::join_all(info.into_iter().map(move |(id, info)| async move {
         let (status, manifest, config, dependencies) = futures::try_join!(
@@ -452,6 +445,6 @@ pub async fn print_instructions(id: &str) -> Result<(), Error> {
             .with_code(crate::error::FILESYSTEM_ERROR)?;
         Ok(())
     } else {
-        Err(failure::format_err!("No Instructions: {}", id)).with_code(crate::error::NOT_FOUND)
+        Err(anyhow!("No Instructions: {}", id)).with_code(crate::error::NOT_FOUND)
     }
 }

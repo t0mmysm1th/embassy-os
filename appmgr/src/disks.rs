@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use futures::future::try_join_all;
+use serde::{Deserialize, Serialize};
 
 use crate::util::Invoke;
 use crate::Error;
@@ -8,7 +9,7 @@ use crate::ResultExt;
 
 pub const FSTAB: &'static str = "/etc/fstab";
 
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct DiskInfo {
     pub logicalname: String,
@@ -16,7 +17,7 @@ pub struct DiskInfo {
     pub description: Option<String>,
 }
 
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct PartitionInfo {
     pub logicalname: String,
@@ -25,7 +26,7 @@ pub struct PartitionInfo {
     pub label: Option<String>,
 }
 
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Disk {
     #[serde(flatten)]

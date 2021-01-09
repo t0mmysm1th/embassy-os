@@ -27,10 +27,10 @@ impl VersionT for Version {
                 reqwest::get(&format!("{}/torrc?spec==0.0.0", &*crate::SYS_REGISTRY_URL))
                     .compat()
                     .await
-                    .with_context(|e| format!("GET {}/torrc: {}", &*crate::SYS_REGISTRY_URL, e))
+                    .with_context(|| format!("GET {}/torrc", &*crate::SYS_REGISTRY_URL))
                     .with_code(crate::error::NETWORK_ERROR)?
                     .error_for_status()
-                    .with_context(|e| format!("GET {}/torrc: {}", &*crate::SYS_REGISTRY_URL, e))
+                    .with_context(|| format!("GET {}/torrc", &*crate::SYS_REGISTRY_URL))
                     .with_code(crate::error::REGISTRY_ERROR)?
                     .bytes_stream()
                     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
@@ -59,8 +59,8 @@ impl VersionT for Version {
 
 mod legacy {
     pub mod tor {
-        use failure::{Error, ResultExt};
-        use linear_map::LinearMap;
+        use anyhow::{Context, Error};
+        use hashlink::LinkedHashMap as Map;
         use tokio::io::AsyncWriteExt;
 
         use crate::tor::HiddenServiceVersion;
@@ -76,7 +76,7 @@ mod legacy {
             pub hidden_service_version: HiddenServiceVersion,
         }
 
-        async fn services_map(path: &PersistencePath) -> Result<LinearMap<String, Service>, Error> {
+        async fn services_map(path: &PersistencePath) -> Result<Map<String, Service>, Error> {
             use crate::util::Apply;
             Ok(path
                 .maybe_read()
@@ -86,15 +86,13 @@ mod legacy {
                 .apply(futures::future::OptionFuture::from)
                 .await
                 .transpose()?
-                .unwrap_or_else(LinearMap::new))
+                .unwrap_or_else(Map::new))
         }
 
-        pub async fn write_services(
-            hidden_services: &LinearMap<String, Service>,
-        ) -> Result<(), Error> {
+        pub async fn write_services(hidden_services: &Map<String, Service>) -> Result<(), Error> {
             tokio::fs::copy(crate::TOR_RC, ETC_TOR_RC)
                 .await
-                .with_context(|e| format!("{} -> {}: {}", crate::TOR_RC, ETC_TOR_RC, e))?;
+                .with_context(|| format!("{} -> {}", crate::TOR_RC, ETC_TOR_RC))?;
             let mut f = tokio::fs::OpenOptions::new()
                 .append(true)
                 .open(ETC_TOR_RC)
@@ -156,8 +154,8 @@ mod legacy {
         use tokio::fs::File;
 
         use crate::Error;
-        use crate::ResultExt as _;
-        use failure::ResultExt as _;
+        use crate::ResultExt;
+        use anyhow::Context;
 
         #[derive(Clone, Debug)]
         pub struct PersistencePath(PathBuf);
@@ -185,7 +183,7 @@ mod legacy {
                     Some(
                         File::open(&path)
                             .await
-                            .with_context(|e| format!("{}: {}", path.display(), e))
+                            .with_context(|| format!("{}", path.display()))
                             .with_code(crate::error::FILESYSTEM_ERROR),
                     )
                 } else {
@@ -229,13 +227,8 @@ mod legacy {
                 if let Some(path) = self.needs_commit.take() {
                     tokio::fs::rename(path.tmp(), path.path())
                         .await
-                        .with_context(|e| {
-                            format!(
-                                "{} -> {}: {}",
-                                path.tmp().display(),
-                                path.path().display(),
-                                e
-                            )
+                        .with_context(|| {
+                            format!("{} -> {}", path.tmp().display(), path.path().display(),)
                         })
                         .with_code(crate::error::FILESYSTEM_ERROR)
                 } else {

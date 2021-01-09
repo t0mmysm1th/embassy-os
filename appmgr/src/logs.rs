@@ -2,13 +2,13 @@ use std::borrow::Cow;
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
-use failure::ResultExt as _;
+use anyhow::Context;
 use futures::stream::{StreamExt, TryStreamExt};
 use itertools::Itertools;
 
 use crate::util::PersistencePath;
 use crate::Error;
-use crate::ResultExt as _;
+use crate::ResultExt;
 
 #[derive(Clone, Copy, Debug, serde::Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -36,7 +36,7 @@ impl std::str::FromStr for Level {
             "WARN" => Ok(Level::Warn),
             "SUCCESS" => Ok(Level::Success),
             "INFO" => Ok(Level::Info),
-            _ => Err(Error::from(format_err!("Unknown Notification Level"))),
+            _ => Err(Error::from(anyhow!("Unknown Notification Level"))),
         }
     }
 }
@@ -68,22 +68,22 @@ impl std::str::FromStr for Notification {
         Ok(Notification {
             time: split
                 .next()
-                .ok_or_else(|| format_err!("missing time"))?
+                .ok_or_else(|| anyhow!("missing time"))?
                 .parse::<f64>()
                 .map(|a| a as i64)
                 .no_code()?,
             level: split
                 .next()
-                .ok_or_else(|| format_err!("missing level"))?
+                .ok_or_else(|| anyhow!("missing level"))?
                 .parse()?,
             code: split
                 .next()
-                .ok_or_else(|| format_err!("missing code"))?
+                .ok_or_else(|| anyhow!("missing code"))?
                 .parse()
                 .no_code()?,
             title: split
                 .next()
-                .ok_or_else(|| format_err!("missing title"))?
+                .ok_or_else(|| anyhow!("missing title"))?
                 .replace("\u{A789}", ":"),
             message: split
                 .intersperse(":")
@@ -161,7 +161,7 @@ pub async fn notifications(id: &str) -> Result<Vec<Notification>, Error> {
     }?;
     let f = tokio::fs::File::open(&p)
         .await
-        .with_context(|e| format!("{}: {}", p.display(), e))
+        .with_context(|| format!("{}", p.display()))
         .with_code(crate::error::FILESYSTEM_ERROR)?;
     let mut lines = tokio::io::AsyncBufReadExt::lines(tokio::io::BufReader::new(f));
     (async_stream::stream! {
@@ -197,7 +197,7 @@ pub async fn stats(id: &str) -> Result<serde_yaml::Value, Error> {
     }?;
     let f = tokio::fs::File::open(&p)
         .await
-        .with_context(|e| format!("{}: {}", p.display(), e))
+        .with_context(|| format!("{}", p.display()))
         .with_code(crate::error::FILESYSTEM_ERROR)?;
     crate::util::from_yaml_async_reader(f).await.no_code()
 }

@@ -50,6 +50,7 @@ pub async fn create_backup<P: AsRef<Path>>(
                 .with_password(password)
                 .with_hash(hash)
                 .verify()
+                .map_err(|e| anyhow!("{}", e))
                 .with_code(crate::error::INVALID_BACKUP_PASSWORD)?,
             crate::error::INVALID_BACKUP_PASSWORD,
             "Invalid Backup Decryption Password"
@@ -61,7 +62,11 @@ pub async fn create_backup<P: AsRef<Path>>(
 
         let mut hasher = Hasher::default();
         hasher.opt_out_of_secret_key(true);
-        let hash = hasher.with_password(password).hash().no_code()?;
+        let hash = hasher
+            .with_password(password)
+            .hash()
+            .map_err(|e| anyhow!("{}", e))
+            .no_code()?;
         let mut f = tokio::fs::File::create(pw_path).await?;
         f.write_all(hash.as_bytes()).await?;
         f.flush().await?;
@@ -96,7 +101,7 @@ pub async fn create_backup<P: AsRef<Path>>(
             Vec::new()
         }
     } else {
-        return Err(format_err!("Volume For {} Does Not Exist", app_id))
+        return Err(anyhow!("Volume For {} Does Not Exist", app_id))
             .with_code(crate::error::NOT_FOUND);
     };
     let running = status.status == crate::apps::DockerStatus::Running;
@@ -169,6 +174,7 @@ pub async fn restore_backup<P: AsRef<Path>>(
                 .with_password(password)
                 .with_hash(hash)
                 .verify()
+                .map_err(|e| anyhow!("{}", e))
                 .with_code(crate::error::INVALID_BACKUP_PASSWORD)?,
             crate::error::INVALID_BACKUP_PASSWORD,
             "Invalid Backup Decryption Password"

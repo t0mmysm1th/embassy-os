@@ -2,13 +2,13 @@ use std::fmt;
 use std::marker::{PhantomData, Unpin};
 use std::path::{Path, PathBuf};
 
-use failure::ResultExt as _;
+use anyhow::Context;
 use file_lock::FileLock;
 use tokio::fs::File;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 use crate::Error;
-use crate::ResultExt as _;
+use crate::ResultExt;
 
 #[derive(Debug, Clone)]
 pub struct PersistencePath(PathBuf);
@@ -49,12 +49,12 @@ impl PersistencePath {
             // !exists
             tokio::fs::File::create(&lock_path)
                 .await
-                .with_context(|e| format!("{}: {}", lock_path, e))
+                .with_context(|| lock_path.clone())
                 .with_code(crate::error::FILESYSTEM_ERROR)?;
         }
         let lock = lock_file(lock_path.clone(), for_update)
             .await
-            .with_context(|e| format!("{}: {}", lock_path, e))
+            .with_context(|| lock_path.clone())
             .with_code(crate::error::FILESYSTEM_ERROR)?;
         Ok(lock)
     }
@@ -77,7 +77,7 @@ impl PersistencePath {
         let lock = self.lock(for_update).await?;
         let file = File::open(&path)
             .await
-            .with_context(|e| format!("{}: {}", path.display(), e))
+            .with_context(|| format!("{}", path.display()))
             .with_code(crate::error::FILESYSTEM_ERROR)?;
         Ok(PersistenceFile::new(file, lock, None))
     }
@@ -142,23 +142,16 @@ impl PersistenceFile {
         if let Some(path) = self.needs_commit.take() {
             tokio::fs::rename(path.tmp(), path.path())
                 .await
-                .with_context(|e| {
-                    format!(
-                        "{} -> {}: {}",
-                        path.tmp().display(),
-                        path.path().display(),
-                        e
-                    )
-                })
+                .with_context(|| format!("{} -> {}", path.tmp().display(), path.path().display(),))
                 .with_code(crate::error::FILESYSTEM_ERROR)?;
             if let Some(lock) = self.lock.take() {
                 unlock(lock)
                     .await
-                    .with_context(|e| format!("{}.lock: {}", path.path().display(), e))
+                    .with_context(|| format!("{}.lock", path.path().display()))
                     .with_code(crate::error::FILESYSTEM_ERROR)?;
                 tokio::fs::remove_file(format!("{}.lock", path.path().display()))
                     .await
-                    .with_context(|e| format!("{}.lock: {}", path.path().display(), e))
+                    .with_context(|| format!("{}.lock", path.path().display()))
                     .with_code(crate::error::FILESYSTEM_ERROR)?;
             }
 
@@ -358,7 +351,7 @@ impl fmt::Display for Never {
         absurd(self.clone())
     }
 }
-impl failure::Fail for Never {}
+impl std::error::Error for Never {}
 
 #[derive(Clone, Debug)]
 pub struct AsyncCompat<T>(pub T);
@@ -466,7 +459,7 @@ where
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer).await?;
     serde_yaml::from_slice(&buffer)
-        .map_err(failure::Error::from)
+        .map_err(anyhow::Error::from)
         .with_code(crate::error::SERDE_ERROR)
 }
 
@@ -489,7 +482,7 @@ where
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer).await?;
     serde_cbor::from_slice(&buffer)
-        .map_err(failure::Error::from)
+        .map_err(anyhow::Error::from)
         .with_code(crate::error::SERDE_ERROR)
 }
 
@@ -501,7 +494,7 @@ where
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer).await?;
     serde_json::from_slice(&buffer)
-        .map_err(failure::Error::from)
+        .map_err(anyhow::Error::from)
         .with_code(crate::error::SERDE_ERROR)
 }
 
@@ -528,11 +521,11 @@ where
 
 #[async_trait::async_trait]
 pub trait Invoke {
-    async fn invoke(&mut self, name: &str) -> Result<Vec<u8>, failure::Error>;
+    async fn invoke(&mut self, name: &str) -> Result<Vec<u8>, anyhow::Error>;
 }
 #[async_trait::async_trait]
 impl Invoke for tokio::process::Command {
-    async fn invoke(&mut self, name: &str) -> Result<Vec<u8>, failure::Error> {
+    async fn invoke(&mut self, name: &str) -> Result<Vec<u8>, anyhow::Error> {
         let res = self.output().await?;
         ensure!(
             res.status.success(),

@@ -1,6 +1,6 @@
 use futures::StreamExt;
 use futures::TryStreamExt;
-use linear_map::LinearMap;
+use hashlink::LinkedHashMap as Map;
 
 use super::*;
 
@@ -36,14 +36,14 @@ impl VersionT for Version {
         let p = PersistencePath::from_ref("apps.yaml");
         let exists = p.path().exists();
         let mut f = p.for_update().await?;
-        let info: LinearMap<String, legacy::apps::AppInfo> = if exists {
+        let info: Map<String, legacy::apps::AppInfo> = if exists {
             crate::util::from_yaml_async_reader(&mut f)
                 .await
                 .no_code()?
         } else {
-            LinearMap::new()
+            Map::new()
         };
-        let new_info: LinearMap<String, crate::apps::AppInfo> = futures::stream::iter(info)
+        let new_info: Map<String, crate::apps::AppInfo> = futures::stream::iter(info)
             .then(|(name, i)| async move {
                 let title = crate::apps::manifest(&name).await?.title;
                 Ok::<_, Error>((
@@ -74,7 +74,7 @@ impl VersionT for Version {
 
 mod legacy {
     pub mod apps {
-        use linear_map::LinearMap;
+        use hashlink::LinkedHashMap as Map;
 
         use crate::util::from_yaml_async_reader;
         use crate::util::Apply;
@@ -88,7 +88,7 @@ mod legacy {
             pub configured: bool,
         }
 
-        pub async fn list_info() -> Result<LinearMap<String, AppInfo>, Error> {
+        pub async fn list_info() -> Result<Map<String, AppInfo>, Error> {
             let apps_path = PersistencePath::from_ref("apps.yaml");
             Ok(apps_path
                 .maybe_read(false)
@@ -98,7 +98,7 @@ mod legacy {
                 .apply(futures::future::OptionFuture::from)
                 .await
                 .transpose()?
-                .unwrap_or_else(LinearMap::new))
+                .unwrap_or_else(Map::new))
         }
     }
 }

@@ -2,17 +2,17 @@ use std::borrow::Cow;
 use std::path::Path;
 use std::time::Duration;
 
-use failure::ResultExt as _;
+use anyhow::Context;
 use futures::future::{BoxFuture, FutureExt};
+use hashlink::{LinkedHashMap as Map, LinkedHashSet as Set};
 use itertools::Itertools;
-use linear_map::{set::LinearSet, LinearMap};
 use rand::SeedableRng;
 use regex::Regex;
 
 use crate::dependencies::{DependencyError, TaggedDependencyError};
 use crate::util::PersistencePath;
 use crate::util::{from_yaml_async_reader, to_yaml_async_writer};
-use crate::ResultExt as _;
+use crate::ResultExt;
 
 pub mod rules;
 pub mod spec;
@@ -24,33 +24,23 @@ pub use spec::{ConfigSpec, Defaultable};
 use util::NumRange;
 pub use value::Config;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum ConfigurationError {
-    #[fail(display = "Timeout Error")]
-    TimeoutError,
-    #[fail(display = "No Match: {}", _0)]
-    NoMatch(NoMatchWithPath),
-    #[fail(display = "Invalid Variant: {}", _0)]
+    #[error("Timeout Error")]
+    TimeoutError(#[from] TimeoutError),
+    #[error("No Match: {0}")]
+    NoMatch(#[from] NoMatchWithPath),
+    #[error("Invalid Variant: {0}")]
     InvalidVariant(String),
-    #[fail(display = "System Error: {}", _0)]
-    SystemError(crate::Error),
-}
-impl From<TimeoutError> for ConfigurationError {
-    fn from(_: TimeoutError) -> Self {
-        ConfigurationError::TimeoutError
-    }
-}
-impl From<NoMatchWithPath> for ConfigurationError {
-    fn from(e: NoMatchWithPath) -> Self {
-        ConfigurationError::NoMatch(e)
-    }
+    #[error("System Error: {0}")]
+    SystemError(#[from] crate::Error),
 }
 
-#[derive(Clone, Copy, Debug, Fail)]
-#[fail(display = "Timeout Error")]
+#[derive(Clone, Copy, Debug, Error)]
+#[error("Timeout Error")]
 pub struct TimeoutError;
 
-#[derive(Clone, Debug, Fail)]
+#[derive(Clone, Debug, Error)]
 pub struct NoMatchWithPath {
     pub path: Vec<String>,
     pub error: MatchError,
@@ -73,47 +63,44 @@ impl std::fmt::Display for NoMatchWithPath {
     }
 }
 
-#[derive(Clone, Debug, Fail)]
+#[derive(Clone, Debug, Error)]
 pub enum MatchError {
-    #[fail(display = "String {:?} Does Not Match Pattern {}", _0, _1)]
+    #[error("String {0:?} Does Not Match Pattern {1}")]
     Pattern(String, Regex),
-    #[fail(display = "String {:?} Is Not In Enum {:?}", _0, _1)]
-    Enum(String, LinearSet<String>),
-    #[fail(display = "Field Is Not Nullable")]
+    #[error("String {0:?} Is Not In Enum {1:?}")]
+    Enum(String, Set<String>),
+    #[error("Field Is Not Nullable")]
     NotNullable,
-    #[fail(display = "Length Mismatch: expected {}, actual: {}", _0, _1)]
+    #[error("Length Mismatch: expected {0}, actual: {1}")]
     LengthMismatch(NumRange<usize>, usize),
-    #[fail(display = "Invalid Type: expected {}, actual: {}", _0, _1)]
+    #[error("Invalid Type: expected {0}, actual: {1}")]
     InvalidType(&'static str, &'static str),
-    #[fail(display = "Number Out Of Range: expected {}, actual: {}", _0, _1)]
+    #[error("Number Out Of Range: expected {0}, actual: {1}")]
     OutOfRange(NumRange<f64>, f64),
-    #[fail(display = "Number Is Not Integral: {}", _0)]
+    #[error("Number Is Not Integral: {0}")]
     NonIntegral(f64),
-    #[fail(display = "Variant {:?} Is Not In Union {:?}", _0, _1)]
-    Union(String, LinearSet<String>),
-    #[fail(display = "Variant Is Missing Tag {:?}", _0)]
+    #[error("Variant {0:?} Is Not In Union {1:?}")]
+    Union(String, Set<String>),
+    #[error("Variant Is Missing Tag {0:?}")]
     MissingTag(String),
-    #[fail(
-        display = "Property {:?} Of Variant {:?} Conflicts With Union Tag",
-        _0, _1
-    )]
+    #[error("Property {0:?} Of Variant {1:?} Conflicts With Union Tag")]
     PropertyMatchesUnionTag(String, String),
-    #[fail(display = "Name of Property {:?} Conflicts With Map Tag Name", _0)]
+    #[error("Name of Property {0:?} Conflicts With Map Tag Name")]
     PropertyNameMatchesMapTag(String),
-    #[fail(display = "Pointer Is Invalid: {}", _0)]
+    #[error("Pointer Is Invalid: {0}")]
     InvalidPointer(spec::ValueSpecPointer),
-    #[fail(display = "Object Key Is Invalid: {}", _0)]
+    #[error("Object Key Is Invalid: {0}")]
     InvalidKey(String),
-    #[fail(display = "Value In List Is Not Unique")]
+    #[error("Value In List Is Not Unique")]
     ListUniquenessViolation,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigurationRes {
-    pub changed: LinearMap<String, Config>,
-    pub needs_restart: LinearSet<String>,
-    pub stopped: LinearMap<String, TaggedDependencyError>,
+    pub changed: Map<String, Config>,
+    pub needs_restart: Set<String>,
+    pub stopped: Map<String, TaggedDependencyError>,
 }
 
 // returns apps with changed configurations
@@ -163,7 +150,7 @@ pub async fn configure(
             let info = crate::apps::list_info()
                 .await?
                 .remove(name)
-                .ok_or_else(|| failure::format_err!("{} is not installed", name))
+                .ok_or_else(|| anyhow!("{} is not installed", name))
                 .with_code(crate::error::NOT_FOUND)?;
             let mut rng = rand::rngs::StdRng::from_entropy();
             let spec_path = PersistencePath::from_ref("apps")
@@ -200,7 +187,7 @@ pub async fn configure(
             spec.update(&mut config)
                 .await
                 .with_code(crate::error::CFG_SPEC_VIOLATION)?;
-            let mut cfgs = LinearMap::new();
+            let mut cfgs = Map::new();
             cfgs.insert(name, Cow::Borrowed(&config));
             for rule in rules {
                 rule.check(&config, &cfgs)
@@ -208,7 +195,8 @@ pub async fn configure(
             }
             match old_config {
                 Some(old) if &old == &config && info.configured && !info.recoverable => {
-                    return Ok(config)
+                    drop(cfgs);
+                    return Ok(config);
                 }
                 _ => (),
             };
@@ -236,8 +224,8 @@ pub async fn configure(
                         }
                     }
                     Err(e) => {
-                        if e.code == Some(crate::error::CFG_RULES_VIOLATION)
-                            || e.code == Some(crate::error::CFG_SPEC_VIOLATION)
+                        if e.code == crate::error::CFG_RULES_VIOLATION
+                            || e.code == crate::error::CFG_SPEC_VIOLATION
                         {
                             if !dry_run {
                                 crate::apps::set_configured(&dependent, false).await?;
@@ -273,10 +261,9 @@ pub async fn configure(
                     .join("config.yaml");
                 tokio::fs::copy(config_path.path(), &volume_config)
                     .await
-                    .with_context(|e| {
+                    .with_context(|| {
                         format!(
-                            "{}: {} -> {}",
-                            e,
+                            "{} -> {}",
                             config_path.path().display(),
                             volume_config.display()
                         )
@@ -292,6 +279,7 @@ pub async fn configure(
                 }
                 res.needs_restart.insert(name.to_string());
             }
+            drop(cfgs);
             Ok(config)
         }
         .boxed()
@@ -309,7 +297,7 @@ pub async fn remove(name: &str) -> Result<(), crate::Error> {
     if config_path.exists() {
         tokio::fs::remove_file(&config_path)
             .await
-            .with_context(|e| format!("{}: {}", e, config_path.display()))
+            .with_context(|| format!("{}", config_path.display()))
             .with_code(crate::error::FILESYSTEM_ERROR)?;
     }
     let volume_config = Path::new(crate::VOLUMES)
@@ -319,7 +307,7 @@ pub async fn remove(name: &str) -> Result<(), crate::Error> {
     if volume_config.exists() {
         tokio::fs::remove_file(&volume_config)
             .await
-            .with_context(|e| format!("{}: {}", e, volume_config.display()))
+            .with_context(|| format!("{}", volume_config.display()))
             .with_code(crate::error::FILESYSTEM_ERROR)?;
     }
     crate::apps::set_configured(name, false).await?;

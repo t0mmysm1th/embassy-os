@@ -1,13 +1,13 @@
-use linear_map::LinearMap;
+use hashlink::LinkedHashMap as Map;
 
 use crate::dependencies::{DependencyError, TaggedDependencyError};
 use crate::Error;
-use crate::ResultExt as _;
+use crate::ResultExt;
 
 pub async fn update(
     name_version: &str,
     dry_run: bool,
-) -> Result<LinearMap<String, TaggedDependencyError>, Error> {
+) -> Result<Map<String, TaggedDependencyError>, Error> {
     let mut name_version_iter = name_version.split("@");
     let name = name_version_iter.next().unwrap();
     let version_req = name_version_iter
@@ -17,7 +17,7 @@ pub async fn update(
         .no_code()?
         .unwrap_or_else(emver::VersionRange::any);
     let version = crate::registry::version(name, &version_req).await?;
-    let mut res = LinearMap::new();
+    let mut res = Map::new();
     for dependent in crate::apps::dependents(name, false).await? {
         if crate::apps::status(&dependent, false).await?.status
             != crate::apps::DockerStatus::Stopped

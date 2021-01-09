@@ -4,7 +4,7 @@ use tokio_compat_02::FutureExt;
 use crate::apps::AppConfig;
 use crate::manifest::ManifestLatest;
 use crate::Error;
-use crate::ResultExt as _;
+use crate::ResultExt;
 
 pub async fn manifest(id: &str, version: &VersionRange) -> Result<ManifestLatest, Error> {
     let manifest: ManifestLatest = reqwest::get(&format!(

@@ -2,48 +2,36 @@ use std::borrow::Cow;
 use std::path::Path;
 
 use emver::{Version, VersionRange};
-use linear_map::LinearMap;
+use hashlink::LinkedHashMap as Map;
 use rand::SeedableRng;
+use serde::{Deserialize, Serialize};
 
 use crate::config::{Config, ConfigRuleEntryWithSuggestions, ConfigSpec};
 use crate::manifest::ManifestLatest;
 use crate::Error;
-use crate::ResultExt as _;
+use crate::ResultExt;
 
-#[derive(Clone, Debug, Fail, serde::Serialize)]
+#[derive(Clone, Debug, Error, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum DependencyError {
+    #[error("Not Installed")]
     NotInstalled, // "not-installed"
-    NotRunning,   // "not-running"
+    #[error("Not Running")]
+    NotRunning, // "not-running"
+    #[error("Incorrect Version: Expected {expected}, Received {received}")]
     IncorrectVersion {
         expected: VersionRange,
         received: Version,
     }, // { "incorrect-version": { "expected": "0.1.0", "received": "^0.2.0" } }
+    #[error("Configuration Rule(s) Violated: {}", .0.join(", "))]
     ConfigUnsatisfied(Vec<String>), // { "config-unsatisfied": ["Bitcoin Core must have pruning set to manual."] }
+    #[error("Pointer Update Caused: {0}")]
     PointerUpdateError(String), // { "pointer-update-error": "Bitcoin Core RPC Port must not be 18332" }
-    Other(String),              // { "other": "Well fuck." }
-}
-impl std::fmt::Display for DependencyError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use DependencyError::*;
-        match self {
-            NotInstalled => write!(f, "Not Installed"),
-            NotRunning => write!(f, "Not Running"),
-            IncorrectVersion { expected, received } => write!(
-                f,
-                "Incorrect Version: Expected {}, Received {}",
-                expected, received
-            ),
-            ConfigUnsatisfied(rules) => {
-                write!(f, "Configuration Rule(s) Violated: {}", rules.join(", "))
-            }
-            PointerUpdateError(e) => write!(f, "Pointer Update Caused {}", e),
-            Other(e) => write!(f, "System Error: {}", e),
-        }
-    }
+    #[error("System Error: {0}")]
+    Other(String), // { "other": "Well fuck." }
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TaggedDependencyError {
     pub dependency: String,
@@ -55,10 +43,10 @@ impl std::fmt::Display for TaggedDependencyError {
     }
 }
 
-#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
-pub struct Dependencies(pub LinearMap<String, DepInfo>);
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Dependencies(pub Map<String, DepInfo>);
 
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct DepInfo {
     pub version: VersionRange,
@@ -104,7 +92,7 @@ impl DepInfo {
             }
         };
         let mut errors = Vec::new();
-        let mut cfgs = LinearMap::with_capacity(2);
+        let mut cfgs = Map::with_capacity(2);
         cfgs.insert(dependency_id, Cow::Borrowed(&dependency_config));
         cfgs.insert(dependent_id, Cow::Borrowed(dependent_config));
         for rule in self.config.iter() {
@@ -136,7 +124,7 @@ pub struct AppDepInfo {
 
 #[derive(Debug, Default, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct AppDependencies(pub LinearMap<String, AppDepInfo>);
+pub struct AppDependencies(pub Map<String, AppDepInfo>);
 
 pub async fn check_dependencies(
     manifest: ManifestLatest,
@@ -171,14 +159,14 @@ pub async fn auto_configure(
         crate::apps::config_or_default(dependency),
         crate::apps::manifest(dependent)
     )?;
-    let mut cfgs = LinearMap::new();
+    let mut cfgs = Map::new();
     cfgs.insert(dependent, Cow::Borrowed(&dependent_config));
     cfgs.insert(dependency, Cow::Owned(dependency_config.clone()));
     let dep_info = manifest
         .dependencies
         .0
         .get(dependency)
-        .ok_or_else(|| failure::format_err!("{} Does Not Depend On {}", dependent, dependency))
+        .ok_or_else(|| anyhow!("{} Does Not Depend On {}", dependent, dependency))
         .no_code()?;
     for rule in &dep_info.config {
         if let Err(e) = rule.apply(dependency, &mut dependency_config, &mut cfgs) {
@@ -197,7 +185,7 @@ pub async fn update_shared(dependency_id: &str) -> Result<(), Error> {
                 .dependencies
                 .0
                 .get(dependency_id)
-                .ok_or_else(|| failure::format_err!("failed to index dependent: {}", dependent_id))?
+                .ok_or_else(|| anyhow!("failed to index dependent: {}", dependent_id))?
                 .mount_shared
             {
                 tokio::fs::create_dir_all(

@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
-use failure::ResultExt;
+use anyhow::Context;
 use futures::stream::StreamExt;
-use linear_map::LinearMap;
+use hashlink::LinkedHashMap as Map;
 use rand::SeedableRng;
 use tokio_tar as tar;
 
@@ -12,17 +12,17 @@ use crate::manifest::{ImageConfig, Manifest};
 use crate::util::{from_cbor_async_reader, from_json_async_reader, from_yaml_async_reader};
 use crate::version::VersionT;
 
-#[derive(Clone, Debug, Fail)]
+#[derive(Clone, Debug, Error)]
 pub enum Error {
-    #[fail(display = "Invalid Directory Name: {}", _0)]
+    #[error("Invalid Directory Name: {0}")]
     InvalidDirectoryName(String),
-    #[fail(display = "Invalid File Name: {}", _0)]
+    #[error("Invalid File Name: {0}")]
     InvalidFileName(String),
-    #[fail(display = "Invalid Output Path: {}", _0)]
+    #[error("Invalid Output Path: {0}")]
     InvalidOutputPath(String),
 }
 
-pub async fn pack(path: &str, output: Option<&str>) -> Result<(), failure::Error> {
+pub async fn pack(path: &str, output: Option<&str>) -> Result<(), anyhow::Error> {
     let path = Path::new(path.trim_end_matches("/"));
     log::info!(
         "Starting pack of {}.",
@@ -34,7 +34,7 @@ pub async fn pack(path: &str, output: Option<&str>) -> Result<(), failure::Error
     let manifest: Manifest = crate::util::from_yaml_async_reader(
         tokio::fs::File::open(path.join("manifest.yaml"))
             .await
-            .with_context(|e| format!("{}: manifest.yaml", e))?,
+            .context("manifest.yaml")?,
     )
     .await?;
     let manifest_latest = manifest.clone().into_latest();
@@ -66,7 +66,7 @@ pub async fn pack(path: &str, output: Option<&str>) -> Result<(), failure::Error
     let config_spec: ConfigSpec = from_yaml_async_reader(
         tokio::fs::File::open(path.join("config_spec.yaml"))
             .await
-            .with_context(|e| format!("{}: config_spec.yaml", e))?,
+            .context("config_spec.yaml")?,
     )
     .await?;
     log::info!("Writing config spec to archive.");
@@ -83,7 +83,7 @@ pub async fn pack(path: &str, output: Option<&str>) -> Result<(), failure::Error
     let config_rules: Vec<ConfigRuleEntry> = from_yaml_async_reader(
         tokio::fs::File::open(path.join("config_rules.yaml"))
             .await
-            .with_context(|e| format!("{}: config_rules.yaml", e))?,
+            .context("config_rules.yaml")?,
     )
     .await?;
     log::info!("Writing config rules to archive.");
@@ -108,7 +108,7 @@ pub async fn pack(path: &str, output: Option<&str>) -> Result<(), failure::Error
         let file_path = path.join(&src_path);
         let src = tokio::fs::File::open(&file_path)
             .await
-            .with_context(|e| format!("{}: {}", e, src_path.display()))?;
+            .with_context(|| format!("{}", src_path.display()))?;
         log::info!("Writing {} to archive.", src_path.display());
         if src.metadata().await?.is_dir() {
             out.append_dir_all(&asset.src, &file_path).await?;
@@ -126,7 +126,7 @@ pub async fn pack(path: &str, output: Option<&str>) -> Result<(), failure::Error
             log::info!("Reading {}/image.tar.", path.display());
             let image = tokio::fs::File::open(path.join("image.tar"))
                 .await
-                .with_context(|e| format!("{}: image.tar", e))?;
+                .context("image.tar")?;
             log::info!("Writing image.tar to archive.");
             let mut header = tar::Header::new_gnu();
             header.set_size(image.metadata().await?.len());
@@ -150,7 +150,7 @@ pub fn validate_path<P: AsRef<Path>>(p: P) -> Result<(), Error> {
     Ok(())
 }
 
-pub async fn verify(path: &str) -> Result<(), failure::Error> {
+pub async fn verify(path: &str) -> Result<(), anyhow::Error> {
     let path = Path::new(path.trim_end_matches("/"));
     ensure!(
         path.extension()
@@ -182,7 +182,7 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
     log::info!("Opening file.");
     let r = tokio::fs::File::open(&path)
         .await
-        .with_context(|e| format!("{}: {}", path.display(), e))?;
+        .with_context(|| format!("{}", path.display()))?;
     log::info!("Extracting archive.");
     let mut pkg = tar::Archive::new(r);
     let mut entries = pkg.entries()?;
@@ -190,7 +190,7 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
     let manifest = entries
         .next()
         .await
-        .ok_or_else(|| format_err!("missing manifest"))??;
+        .ok_or_else(|| anyhow!("missing manifest"))??;
     ensure!(
         manifest.path()?.to_str() == Some("manifest.cbor"),
         "Package File Invalid or Corrupted: expected manifest.cbor, got {}",
@@ -223,7 +223,7 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
     let config_spec = entries
         .next()
         .await
-        .ok_or_else(|| format_err!("missing config spec"))??;
+        .ok_or_else(|| anyhow!("missing config spec"))??;
     ensure!(
         config_spec.path()?.to_str() == Some("config_spec.cbor"),
         "Package File Invalid or Corrupted: expected config_rules.cbor, got {}",
@@ -239,7 +239,7 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
     let config_rules = entries
         .next()
         .await
-        .ok_or_else(|| format_err!("missing config rules"))??;
+        .ok_or_else(|| anyhow!("missing config rules"))??;
     ensure!(
         config_rules.path()?.to_str() == Some("config_rules.cbor"),
         "Package File Invalid or Corrupted: expected config_rules.cbor, got {}",
@@ -248,17 +248,17 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
     log::trace!("Deserializing config rules.");
     let config_rules: Vec<ConfigRuleEntry> = from_cbor_async_reader(config_rules).await?;
     log::trace!("Validating config rules against config spec.");
-    let mut cfgs = LinearMap::new();
+    let mut cfgs = Map::new();
     cfgs.insert(name, Cow::Borrowed(&config));
     for rule in &config_rules {
         rule.check(&config, &cfgs)
-            .with_context(|e| format!("Default Config does not satisfy: {}", e))?;
+            .context("Default Config does not satisfy")?;
     }
     if manifest.has_instructions {
         let instructions = entries
             .next()
             .await
-            .ok_or_else(|| format_err!("missing instructions"))??;
+            .ok_or_else(|| anyhow!("missing instructions"))??;
         ensure!(
             instructions.path()?.to_str() == Some("instructions.md"),
             "Package File Invalid or Corrupted: expected instructions.md, got {}",
@@ -271,7 +271,7 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
         let asset = entries
             .next()
             .await
-            .ok_or_else(|| format_err!("missing asset: {}", asset_info.src.display()))??;
+            .ok_or_else(|| anyhow!("missing asset: {}", asset_info.src.display()))??;
         if asset.header().entry_type().is_file() {
             ensure!(
                 asset.path()?.to_str() == Some(&format!("{}", asset_info.src.display())),
@@ -288,7 +288,7 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
             );
             loop {
                 let file = entries.next().await.ok_or_else(|| {
-                    format_err!(
+                    anyhow!(
                         "missing directory end marker: APPMGR_DIR_END:{}",
                         asset_info.src.display()
                     )
@@ -328,10 +328,10 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
             let image = entries
                 .next()
                 .await
-                .ok_or_else(|| format_err!("missing image.tar"))??;
+                .ok_or_else(|| anyhow!("missing image.tar"))??;
             let image_path = image.path()?;
             if image_path != Path::new("image.tar") {
-                return Err(format_err!(
+                return Err(anyhow!(
                     "Package File Invalid or Corrupted: expected image.tar, got {}",
                     image_path.display()
                 ));
@@ -358,7 +358,7 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
                 })
                 .next()
                 .await
-                .ok_or_else(|| format_err!("image.tar is missing manifest.json"))??;
+                .ok_or_else(|| anyhow!("image.tar is missing manifest.json"))??;
             let image_manifest: Vec<DockerManifest> =
                 from_json_async_reader(image_manifest).await?;
             image_manifest
@@ -367,7 +367,7 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
                 .map(|t| {
                     if t.starts_with("start9/") {
                         if t.split(":").next().unwrap() != image_name {
-                            Err(format_err!("Contains prohibited image tag: {}", t))
+                            Err(anyhow!("Contains prohibited image tag: {}", t))
                         } else {
                             Ok(())
                         }
@@ -384,9 +384,9 @@ pub async fn verify(path: &str) -> Result<(), failure::Error> {
 
 pub mod commands {
     use clap::ArgMatches;
-    use futures::{future::BoxFuture, FutureExt, TryFutureExt};
+    use futures::{FutureExt, TryFutureExt};
 
-    use crate::api::{Api, Argument};
+    use crate::api::{Api, Argument, ClapImpl};
     use crate::error::Error;
 
     #[derive(Debug, Default, Clone, Copy)]
@@ -431,8 +431,9 @@ pub mod commands {
         }
         fn clap_impl<'a>(
             &self,
+            _full_command: &'a [&'a dyn Api],
             matches: &'a ArgMatches,
-        ) -> Option<BoxFuture<'a, Result<(), Error>>> {
+        ) -> ClapImpl<'a> {
             Some(
                 super::pack(
                     matches.value_of("PATH").unwrap(),
@@ -472,8 +473,9 @@ pub mod commands {
         }
         fn clap_impl<'a>(
             &self,
+            _full_command: &'a [&'a dyn Api],
             matches: &'a ArgMatches,
-        ) -> Option<BoxFuture<'a, Result<(), Error>>> {
+        ) -> ClapImpl<'a> {
             Some(
                 super::verify(matches.value_of(VerifyPath.name()).unwrap())
                     .map_err(Error::from)

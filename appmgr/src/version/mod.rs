@@ -1,13 +1,14 @@
 use std::cmp::Ordering;
 
+use anyhow::Context;
 use async_trait::async_trait;
-use failure::ResultExt as _;
 use futures::stream::TryStreamExt;
+use serde::{Deserialize, Serialize};
 use tokio_compat_02::FutureExt;
 
 use crate::util::{to_yaml_async_writer, AsyncCompat, PersistencePath};
 use crate::Error;
-use crate::ResultExt as _;
+use crate::ResultExt;
 
 mod v0_1_0;
 mod v0_1_1;
@@ -27,7 +28,7 @@ mod v0_2_8;
 
 pub use v0_2_8::Version as Current;
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(untagged)]
 enum Version {
     V0_0_0(Wrapper<()>),
@@ -134,7 +135,7 @@ impl VersionT for () {
     }
 }
 
-pub async fn init() -> Result<(), failure::Error> {
+pub async fn init() -> Result<(), anyhow::Error> {
     let _lock = PersistencePath::from_ref("").lock(true).await?;
     let vpath = PersistencePath::from_ref("version");
     if let Some(mut f) = vpath.maybe_read(false).await.transpose()? {
@@ -172,7 +173,8 @@ pub async fn self_update(requirement: emver::VersionRange) -> Result<(), Error> 
         .collect();
     let url = format!("{}/appmgr?spec={}", &*crate::SYS_REGISTRY_URL, req_str);
     log::info!("Fetching new version from {}", url);
-    let response = reqwest::get(&url).compat()
+    let response = reqwest::get(&url)
+        .compat()
         .await
         .with_code(crate::error::NETWORK_ERROR)?
         .error_for_status()
@@ -190,7 +192,7 @@ pub async fn self_update(requirement: emver::VersionRange) -> Result<(), Error> 
         .write(true)
         .open(&tmp_appmgr_path)
         .await
-        .with_context(|e| format!("{}: {}", tmp_appmgr_path.display(), e))
+        .with_context(|| format!("{}", tmp_appmgr_path.display()))
         .with_code(crate::error::FILESYSTEM_ERROR)?;
     tokio::io::copy(
         &mut AsyncCompat(
@@ -220,12 +222,12 @@ pub async fn self_update(requirement: emver::VersionRange) -> Result<(), Error> 
         .stdout(std::process::Stdio::piped())
         .spawn()?
         .wait_with_output()
-        .with_context(|e| format!("{} semver: {}", tmp_appmgr_path.display(), e))
+        .with_context(|| format!("{} semver", tmp_appmgr_path.display()))
         .no_code()?;
     let out_str = std::str::from_utf8(&out.stdout).no_code()?;
     log::info!("Migrating to version {}", out_str);
     let v: Version = serde_yaml::from_str(out_str)
-        .with_context(|e| format!("{}: {:?}", e, out_str))
+        .with_context(|| format!("{:?}", out_str))
         .with_code(crate::error::SERDE_ERROR)?;
     match v {
         Version::V0_0_0(v) => Current::new().migrate_to(&v.0).await?,
@@ -250,14 +252,7 @@ pub async fn self_update(requirement: emver::VersionRange) -> Result<(), Error> 
     let cur_path = std::path::Path::new("/usr/local/bin/appmgr");
     tokio::fs::rename(&tmp_appmgr_path, &cur_path)
         .await
-        .with_context(|e| {
-            format!(
-                "{} -> {}: {}",
-                tmp_appmgr_path.display(),
-                cur_path.display(),
-                e
-            )
-        })
+        .with_context(|| format!("{} -> {}", tmp_appmgr_path.display(), cur_path.display(),))
         .with_code(crate::error::FILESYSTEM_ERROR)?;
 
     Ok(())

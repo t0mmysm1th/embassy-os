@@ -1,16 +1,9 @@
 [package]
-<<<<<<< HEAD
-authors = ["Aiden McClelland <me@drbonez.dev>"]
+authors = ["Dr. BoneZ <drbonez@start9labs.com>"]
+description = "Manage applications installed on the Start9 Embassy"
 edition = "2018"
 name = "appmgr"
 version = "0.2.8"
-=======
-name = "appmgr"
-version = "0.2.7"
-authors = ["Dr. BoneZ <drbonez@start9labs.com>"]
-edition = "2018"
-description = "Manage applications installed on the Start9 Embassy"
->>>>>>> appmgr: finish portable api
 
 [lib]
 name = "appmgrlib"
@@ -30,16 +23,19 @@ portable = []
 production = []
 
 [dependencies]
+anyhow = "1.0.37"
 argonautica = "0.2.0"
 async-stream = "0.3.0"
 async-trait = "0.1.42"
 base32 = "0.4.0"
+base64 = "0.13.0"
 clap = "2.33"
 ed25519-dalek = "1.0.1"
 emver = { version = "0.1.0", features = ["serde"] }
 failure = "0.1.8"
 futures = "0.3.12"
 git-version = "0.3.4"
+hashlink = { version = "0.6.0", features = ["serde_impl"] }
 hyper = "0.14.2"
 itertools = "0.10.0"
 lazy_static = "1.4"
@@ -48,6 +44,7 @@ log = "0.4.13"
 nix = "0.19.1"
 openssl = "0.10.32"
 patch-db = { path = "../../patch-db" }
+percent-encoding = "2.1.0"
 pest = "2.1"
 pest_derive = "2.1"
 pin-project = "1.0.4"
@@ -59,8 +56,10 @@ rpassword = "5.0.1"
 serde = { version = "1.0.123", features = ["derive", "rc"] }
 serde_cbor = "0.11.1"
 serde_json = "1.0.61"
+serde_qs = "0.8.2"
 serde_yaml = "0.8.15"
 simple-logging = "2.0"
+thiserror = "1.0.23"
 tokio = { version = "1.0.1", features = ["full"] }
 tokio-compat-02 = "0.2.0"
 tokio-tar = { version = "0.4.0", git = "https://github.com/dr-bonez/tokio-tar.git" }

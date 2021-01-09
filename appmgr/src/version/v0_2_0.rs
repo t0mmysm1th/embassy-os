@@ -1,4 +1,4 @@
-use linear_map::LinearMap;
+use hashlink::LinkedHashMap as Map;
 
 use super::*;
 use crate::util::{to_yaml_async_writer, PersistencePath};
@@ -16,7 +16,7 @@ impl VersionT for Version {
         &V0_2_0
     }
     async fn up(&self) -> Result<(), Error> {
-        let app_info: LinearMap<String, crate::apps::AppInfo> = legacy::apps::list_info()
+        let app_info: Map<String, crate::apps::AppInfo> = legacy::apps::list_info()
             .await?
             .into_iter()
             .map(|(id, ai)| {
@@ -40,7 +40,7 @@ impl VersionT for Version {
         Ok(())
     }
     async fn down(&self) -> Result<(), Error> {
-        let app_info: LinearMap<String, legacy::apps::AppInfo> = crate::apps::list_info()
+        let app_info: Map<String, legacy::apps::AppInfo> = crate::apps::list_info()
             .await?
             .into_iter()
             .map(|(id, ai)| {
@@ -66,7 +66,7 @@ impl VersionT for Version {
 
 mod legacy {
     pub mod apps {
-        use linear_map::LinearMap;
+        use hashlink::LinkedHashMap as Map;
 
         use crate::util::{from_yaml_async_reader, PersistencePath};
         use crate::Error;
@@ -86,11 +86,11 @@ mod legacy {
             pub recoverable: bool,
         }
 
-        pub async fn list_info() -> Result<LinearMap<String, AppInfo>, Error> {
+        pub async fn list_info() -> Result<Map<String, AppInfo>, Error> {
             let apps_path = PersistencePath::from_ref("apps.yaml");
             let mut f = match apps_path.maybe_read(false).await.transpose()? {
                 Some(a) => a,
-                None => return Ok(LinearMap::new()),
+                None => return Ok(Map::new()),
             };
             from_yaml_async_reader(&mut *f).await
         }

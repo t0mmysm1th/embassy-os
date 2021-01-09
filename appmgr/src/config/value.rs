@@ -1,7 +1,8 @@
-use linear_map::LinearMap;
+use hashlink::LinkedHashMap as Map;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct Config(pub LinearMap<String, Value>);
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+pub struct Config(pub Map<String, Value>);
 
 impl Config {
     pub fn merge_with(&mut self, other: Config) {
@@ -41,7 +42,7 @@ fn serialize_num<S: serde::Serializer>(num: &f64, serializer: S) -> Result<S::Ok
     }
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum Value {
     String(String),

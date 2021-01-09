@@ -11,7 +11,7 @@ use std::task::Context;
 use std::task::Poll;
 use std::time::Duration;
 
-use failure::ResultExt as _;
+use anyhow::Context as _;
 use futures::stream::StreamExt;
 use futures::stream::TryStreamExt;
 use tokio::io::AsyncWriteExt;
@@ -23,13 +23,13 @@ use crate::config::{ConfigRuleEntry, ConfigSpec};
 use crate::manifest::{ImageConfig, Manifest, ManifestV0};
 use crate::util::{from_cbor_async_reader, to_yaml_async_writer, AsyncCompat, PersistencePath};
 use crate::version::VersionT;
-use crate::ResultExt as _;
+use crate::ResultExt;
 
-#[derive(Fail, Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum Error {
-    #[fail(display = "Package File Invalid or Corrupted: {}", _0)]
+    #[error("Package File Invalid or Corrupted: {0}")]
     CorruptedPkgFile(&'static str),
-    #[fail(display = "Invalid File Name")]
+    #[error("Invalid File Name")]
     InvalidFileName,
 }
 
@@ -50,7 +50,7 @@ pub async fn install_name(name_version: &str, use_cache: bool) -> Result<(), cra
     .await?;
     tokio::fs::remove_file(&tmp_path)
         .await
-        .with_context(|e| format!("{}: {}", tmp_path.display(), e))
+        .with_context(|| format!("{}", tmp_path.display()))
         .with_code(crate::error::FILESYSTEM_ERROR)?;
     Ok(())
 }
@@ -159,7 +159,7 @@ pub async fn install_url(url: &str, name: Option<&str>) -> Result<(), crate::Err
     install_path(&tmp_file_path, name).await?;
     tokio::fs::remove_file(&tmp_file_path)
         .await
-        .with_context(|e| format!("{}: {}", tmp_file_path.display(), e))
+        .with_context(|| format!("{}", tmp_file_path.display()))
         .with_code(crate::error::FILESYSTEM_ERROR)?;
     Ok(())
 }
@@ -175,7 +175,7 @@ pub async fn install_path<P: AsRef<Path>>(p: P, name: Option<&str>) -> Result<()
     );
     let file = tokio::fs::File::open(&path)
         .await
-        .with_context(|e| format!("{}: {}", path.display(), e))
+        .with_context(|| format!("{}", path.display()))
         .with_code(crate::error::FILESYSTEM_ERROR)?;
     let len = file.metadata().await?.len();
     let done = Arc::new(AtomicBool::new(false));
@@ -361,12 +361,12 @@ pub async fn install_v0<R: AsyncRead + Unpin + Send + Sync>(
                 if dst_path_file.is_dir() {
                     tokio::fs::remove_dir_all(&dst_path_file)
                         .await
-                        .with_context(|e| format!("{}: {}", dst_path_file.display(), e))
+                        .with_context(|| format!("{}", dst_path_file.display()))
                         .with_code(crate::error::FILESYSTEM_ERROR)?;
                 } else {
                     tokio::fs::remove_file(&dst_path_file)
                         .await
-                        .with_context(|e| format!("{}: {}", dst_path_file.display(), e))
+                        .with_context(|| format!("{}", dst_path_file.display()))
                         .with_code(crate::error::FILESYSTEM_ERROR)?;
                 }
             }
@@ -437,7 +437,7 @@ pub async fn install_v0<R: AsyncRead + Unpin + Send + Sync>(
                 .no_code()??;
             let image_path = image.path()?;
             if image_path != Path::new("image.tar") {
-                return Err(crate::Error::from(format_err!(
+                return Err(crate::Error::from(anyhow!(
                     "Package File Invalid or Corrupted: expected image.tar, got {}",
                     image_path.display()
                 )));

@@ -1,4 +1,5 @@
 use std::borrow::{Borrow, Cow};
+use std::error::Error;
 use std::fmt;
 use std::fmt::Debug;
 use std::ops::RangeBounds;
@@ -6,10 +7,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use hashlink::{LinkedHashMap as Map, LinkedHashSet as Set};
 use itertools::Itertools;
-use linear_map::{set::LinearSet, LinearMap};
 use rand::{CryptoRng, Rng};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 use super::util::{self, CharSet, NumRange, UniqueBy, STATIC_NULL};
 use super::value::{Config, Value};
@@ -52,7 +54,7 @@ pub trait ValueSpec {
 // and 'HasDefaultSpec'.
 pub trait DefaultableWith {
     type DefaultSpec: Sync;
-    type Error: failure::Fail;
+    type Error: Error;
 
     fn gen_with<R: Rng + CryptoRng + Sync + Send + Sync + Send>(
         &self,
@@ -77,7 +79,7 @@ pub trait Defaultable {
 impl<T, E> Defaultable for T
 where
     T: HasDefaultSpec + DefaultableWith<Error = E> + Sync,
-    E: failure::Fail,
+    E: Error,
 {
     type Error = E;
 
@@ -92,7 +94,7 @@ where
 
 // WithDefault - trivial wrapper that pairs a 'DefaultableWith' type with a
 // default spec
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct WithDefault<T: DefaultableWith> {
     #[serde(flatten)]
     pub inner: T,
@@ -147,7 +149,7 @@ where
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct WithNullable<T> {
     #[serde(flatten)]
     pub inner: T,
@@ -211,7 +213,7 @@ where
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WithDescription<T> {
     #[serde(flatten)]
@@ -276,7 +278,7 @@ where
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 #[serde(tag = "type")]
 pub enum ValueSpecAny {
@@ -393,7 +395,7 @@ impl Defaultable for ValueSpecAny {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ValueSpecBoolean {}
 #[async_trait]
 impl ValueSpec for ValueSpecBoolean {
@@ -440,17 +442,17 @@ impl DefaultableWith for ValueSpecBoolean {
 #[derive(Clone, Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ValueSpecEnum {
-    pub values: LinearSet<String>,
-    pub value_names: LinearMap<String, String>,
+    pub values: Set<String>,
+    pub value_names: Map<String, String>,
 }
 impl<'de> serde::de::Deserialize<'de> for ValueSpecEnum {
     fn deserialize<D: serde::de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
         pub struct _ValueSpecEnum {
-            pub values: LinearSet<String>,
+            pub values: Set<String>,
             #[serde(default)]
-            pub value_names: LinearMap<String, String>,
+            pub value_names: Map<String, String>,
         }
 
         let mut r#enum = _ValueSpecEnum::deserialize(deserializer)?;
@@ -516,7 +518,7 @@ impl DefaultableWith for ValueSpecEnum {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ListSpec<T> {
     pub spec: T,
     pub range: NumRange<usize>,
@@ -628,7 +630,7 @@ unsafe impl Send for ValueSpecObject {} // TODO: remove
 unsafe impl Sync for ValueSpecUnion {} // TODO: remove
 unsafe impl Send for ValueSpecUnion {} // TODO: remove
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 #[serde(tag = "subtype")]
 pub enum ValueSpecList {
@@ -729,7 +731,7 @@ impl Defaultable for ValueSpecList {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ValueSpecNumber {
     range: Option<NumRange<f64>>,
     #[serde(default)]
@@ -841,7 +843,7 @@ impl DefaultableWith for ValueSpecNumber {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ValueSpecObject {
     pub spec: ConfigSpec,
@@ -922,8 +924,8 @@ impl Defaultable for ValueSpecObject {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct ConfigSpec(pub LinearMap<String, ValueSpecAny>);
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ConfigSpec(pub Map<String, ValueSpecAny>);
 impl ConfigSpec {
     pub fn matches(&self, value: &Config) -> Result<(), NoMatchWithPath> {
         for (key, val) in self.0.iter() {
@@ -942,7 +944,7 @@ impl ConfigSpec {
         rng: &mut R,
         timeout: &Option<Duration>,
     ) -> Result<Config, ConfigurationError> {
-        let mut res = LinearMap::new();
+        let mut res = Map::new();
         for (key, val) in self.0.iter() {
             res.insert(key.clone(), val.gen(rng, timeout)?);
         }
@@ -983,7 +985,7 @@ impl ConfigSpec {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pattern {
     #[serde(with = "util::serde_regex")]
@@ -991,7 +993,7 @@ pub struct Pattern {
     pub pattern_description: String,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ValueSpecString {
     #[serde(flatten)]
     pub pattern: Option<Pattern>,
@@ -1077,7 +1079,7 @@ impl DefaultableWith for ValueSpecString {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum DefaultString {
     Literal(String),
@@ -1092,7 +1094,7 @@ impl DefaultString {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Entropy {
     pub charset: Option<CharSet>,
     pub len: usize,
@@ -1109,20 +1111,20 @@ impl Entropy {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UnionTag {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
-    pub variant_names: LinearMap<String, String>,
+    pub variant_names: Map<String, String>,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ValueSpecUnion {
     pub tag: UnionTag,
-    pub variants: LinearMap<String, ConfigSpec>,
+    pub variants: Map<String, ConfigSpec>,
     pub display_as: Option<String>,
     pub unique_by: UniqueBy,
 }
@@ -1139,7 +1141,7 @@ impl<'de> serde::de::Deserialize<'de> for ValueSpecUnion {
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
         pub struct _ValueSpecUnion {
-            pub variants: LinearMap<String, ConfigSpec>,
+            pub variants: Map<String, ConfigSpec>,
             pub tag: _UnionTag,
             pub display_as: Option<String>,
             #[serde(default)]
@@ -1287,7 +1289,7 @@ impl DefaultableWith for ValueSpecUnion {
         };
         let cfg_res = variant.gen(rng, timeout)?;
 
-        let mut tagged_cfg = LinearMap::new();
+        let mut tagged_cfg = Map::new();
         tagged_cfg.insert(self.tag.id.clone(), Value::String(spec.clone()));
         tagged_cfg.extend(cfg_res.0.into_iter());
 
@@ -1295,7 +1297,7 @@ impl DefaultableWith for ValueSpecUnion {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "subtype")]
 #[serde(rename_all = "kebab-case")]
 pub enum ValueSpecPointer {
@@ -1351,7 +1353,7 @@ impl ValueSpec for ValueSpecPointer {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct AppPointerSpec {
     pub app_id: String,
@@ -1386,8 +1388,8 @@ impl AppPointerSpec {
                         .map
                         .get(&self.app_id)
                         .ok_or(ConfigurationError::SystemError(crate::Error::new(
-                            failure::format_err!("App Not Found"),
-                            Some(crate::error::NOT_FOUND),
+                            anyhow!("App Not Found"),
+                            crate::error::NOT_FOUND,
                         )))?;
                 Ok(
                     crate::tor::read_tor_key(&self.app_id, service.hidden_service_version, None)
@@ -1424,7 +1426,7 @@ impl AppPointerSpec {
                 } else {
                     return Ok(Value::Null);
                 };
-                let mut cfgs = LinearMap::new();
+                let mut cfgs = Map::new();
                 cfgs.insert(self.app_id.as_str(), Cow::Borrowed(&cfg));
 
                 Ok((index.compiled)(&cfg, &cfgs))
@@ -1474,7 +1476,7 @@ impl ValueSpec for AppPointerSpec {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "target")]
 #[serde(rename_all = "kebab-case")]
 pub enum AppPointerSpecVariants {
@@ -1529,7 +1531,7 @@ impl serde::ser::Serialize for ConfigPointer {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 #[serde(tag = "target")]
 pub enum SystemPointerSpec {
@@ -1863,7 +1865,7 @@ mod test {
             assets: Vec::new(),
             hidden_service_version: crate::tor::HiddenServiceVersion::V3,
             dependencies: deps,
-            extra: LinearMap::new(),
+            extra: Map::new(),
         })
         .unwrap();
         let config = spec

@@ -5,16 +5,17 @@ use std::path::Path;
 
 use emver::{Version, VersionRange};
 use futures::future::{BoxFuture, FutureExt};
-use linear_map::LinearMap;
+use hashlink::LinkedHashMap as Map;
+use serde::{Deserialize, Serialize};
 
 use crate::inspect::info_full;
 use crate::manifest::{Description, ManifestLatest};
 use crate::{Error, ResultExt};
 
-#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
-pub struct AppIndex(pub LinearMap<String, IndexInfo>);
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct AppIndex(pub Map<String, IndexInfo>);
 
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct IndexInfo {
     pub title: String,
@@ -23,7 +24,7 @@ pub struct IndexInfo {
     pub icon_type: String,
 }
 
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct VersionInfo {
     pub version: Version,
@@ -117,7 +118,7 @@ pub async fn index<P: AsRef<Path>>(dir: P) -> Result<AppIndex, Error> {
                     if ext == Some(OsStr::new("s9pk")) {
                         let info = info_full(&path, true, false)
                             .await
-                            .with_ctx(|e| (e.code.clone(), format!("{}: {}", path.display(), e)))?;
+                            .with_ctx(|e| (e.code, format!("{}: {}", path.display(), e)))?;
                         idx.add(info.manifest.unwrap());
                     }
                 } else if metadata.is_dir() {

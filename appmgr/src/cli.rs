@@ -14,9 +14,9 @@ async fn main() {
     match inner_main().await {
         Ok(()) => (),
         Err(e) => {
-            eprintln!("{}", e.failure);
-            log::warn!("{:?}", e.failure);
-            std::process::exit(e.code.unwrap_or(1));
+            eprintln!("{}", e.message);
+            log::warn!("{:?}", e.message);
+            std::process::exit(e.code);
         }
     }
 }
@@ -33,124 +33,7 @@ async fn inner_main() -> Result<(), Error> {
     let mut app = App::new("Start9 Application Manager")
         .version(version.as_str())
         .author("Dr. BoneZ <drbonez@start9labs.com>")
-        .about("Manage applications installed on the Start9 Embassy")
-        .arg(
-            Arg::with_name("verbosity")
-                .short("v")
-                .help("Sets verbosity level")
-                .multiple(true),
-        )
-        .subcommand(SubCommand::with_name("semver").about("Prints semantic version and exits"))
-        .subcommand(SubCommand::with_name("git-info").about("Prints git version info and exits"))
-        .subcommand(
-            SubCommand::with_name("pack")
-                .about("Creates a new application package")
-                .arg(
-                    Arg::with_name("output")
-                        .short("o")
-                        .long("output")
-                        .takes_value(true)
-                        .default_value("app.s9pk"),
-                )
-                .arg(
-                    Arg::with_name("PATH")
-                        .help("Path to the folder containing the application data")
-                        .required(true),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("verify")
-                .about("Verifies an application package")
-                .arg(
-                    Arg::with_name("PATH")
-                        .help("Path to the s9pk file to verify")
-                        .required(true),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("inspect")
-                .about("Inspects an application package")
-                .subcommand(
-                    SubCommand::with_name("info")
-                        .about("Prints information about an app")
-                        .arg(
-                            Arg::with_name("PATH")
-                                .help("Path to the s9pk file to inspect")
-                                .required(true),
-                        )
-                        .arg(
-                            Arg::with_name("json")
-                                .conflicts_with("yaml")
-                                .required_unless("yaml")
-                                .long("json")
-                                .short("j")
-                                .help("Output as json"),
-                        )
-                        .arg(
-                            Arg::with_name("pretty")
-                                .requires("json")
-                                .long("pretty")
-                                .short("p")
-                                .help("Pretty print output"),
-                        )
-                        .arg(
-                            Arg::with_name("yaml")
-                                .conflicts_with("json")
-                                .required_unless("json")
-                                .long("yaml")
-                                .short("y")
-                                .help("Output as yaml"),
-                        )
-                        .arg(
-                            Arg::with_name("include-manifest")
-                                .long("include-manifest")
-                                .short("m"),
-                        )
-                        .arg(
-                            Arg::with_name("include-config")
-                                .long("include-config")
-                                .short("c"),
-                        )
-                        .arg(
-                            Arg::with_name("only-manifest")
-                                .long("only-manifest")
-                                .short("M")
-                                .conflicts_with_all(&[
-                                    "include-manifest",
-                                    "include-config",
-                                    "only-config",
-                                ]),
-                        )
-                        .arg(
-                            Arg::with_name("only-config")
-                                .long("only-config")
-                                .short("C")
-                                .conflicts_with_all(&[
-                                    "include-manifest",
-                                    "include-config",
-                                    "only-manifest",
-                                ]),
-                        ),
-                )
-                .subcommand(
-                    SubCommand::with_name("instructions")
-                        .about("Prints instructions for an app")
-                        .arg(
-                            Arg::with_name("PATH")
-                                .help("Path to the s9pk file to inspect")
-                                .required(true),
-                        ),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("index")
-                .about("Indexes all s9pk files in a directory")
-                .arg(
-                    Arg::with_name("DIR")
-                        .help("Path to the directory to index")
-                        .required(true),
-                ),
-        );
+        .about("Manage applications installed on the Start9 Embassy");
 
     #[cfg(not(feature = "portable"))]
     let mut app = app
