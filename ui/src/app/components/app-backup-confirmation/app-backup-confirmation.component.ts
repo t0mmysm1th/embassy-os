@@ -1,8 +1,7 @@
 import { Component, Input, OnInit } from '@angular/core'
-import { IonicSafeString, ModalController } from '@ionic/angular'
+import { ModalController } from '@ionic/angular'
 import { BehaviorSubject } from 'rxjs'
-import { AppInstalledFull } from 'src/app/models/app-types'
-import { DiskPartition } from 'src/app/models/server-model'
+import { DiskPartition, ServerModel } from 'src/app/models/server-model'
 
 @Component({
   selector: 'app-backup-confirmation',
@@ -16,19 +15,18 @@ export class AppBackupConfirmationComponent implements OnInit {
   eject = true
   message: string
 
-  @Input() app: AppInstalledFull
   @Input() partition: DiskPartition
 
-  constructor (private readonly modalCtrl: ModalController) { }
+  constructor (private readonly modalCtrl: ModalController, private readonly serverModel: ServerModel) { }
   ngOnInit () {
-    this.message = `Enter your master password to create an encrypted backup of ${this.app.title} to "${this.partition.label || this.partition.logicalname}".`
+    this.message = `Enter your master password to create an encrypted backup of ${this.serverModel.peek().name} to "${this.partition.label || this.partition.logicalname}".`
   }
 
   toggleMask () {
     this.unmasked = !this.unmasked
   }
 
-  cancel() {
+  cancel () {
     this.modalCtrl.dismiss({ cancel: true })
   }
 

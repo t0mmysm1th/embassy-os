@@ -3,23 +3,24 @@ import { ModalController, AlertController, LoadingController, IonicSafeString, T
 import { AppModel, AppStatus } from 'src/app/models/app-model'
 import { AppInstalledFull } from 'src/app/models/app-types'
 import { ApiService } from 'src/app/services/api/api.service'
-import { DiskInfo, DiskPartition } from 'src/app/models/server-model'
+import { DiskInfo, DiskPartition, S9Server, ServerModel } from 'src/app/models/server-model'
 import { pauseFor } from 'src/app/util/misc.util'
 import { concatMap } from 'rxjs/operators'
 import { AppBackupConfirmationComponent } from 'src/app/components/app-backup-confirmation/app-backup-confirmation.component'
+import { Cleanup } from 'src/app/util/cleanup'
 
 @Component({
   selector: 'app-backup',
   templateUrl: './app-backup.page.html',
   styleUrls: ['./app-backup.page.scss'],
 })
-export class AppBackupPage {
-  @Input() app: AppInstalledFull
+export class AppBackupPage extends Cleanup {
   @Input() type: 'create' | 'restore'
   disks: DiskInfo[]
   loading = true
   error: string
   allPartitionsMounted: boolean
+  serverName: string
 
   constructor (
     private readonly modalCtrl: ModalController,
@@ -27,10 +28,14 @@ export class AppBackupPage {
     private readonly loadingCtrl: LoadingController,
     private readonly apiService: ApiService,
     private readonly appModel: AppModel,
+    private readonly serverModel: ServerModel,
     private readonly toastCtrl: ToastController,
-  ) { }
+  ) { super() }
 
   ngOnInit () {
+    this.cleanup(
+      this.serverModel.watch().name.subscribe(n => this.serverName = n),
+    )
     return this.getExternalDisks().then(() => this.loading = false)
   }
 
@@ -62,14 +67,14 @@ export class AppBackupPage {
       alert = await this.alertCtrl.create({
         backdropDismiss: false,
         header: `Backups`,
-        message: `Select a location to back up ${this.app.title}.<br /><br />Internal drives and drives currently backing up other services will not be available.<br /><br />Depending on the amount of data in ${this.app.title}, your first backup may take a while. Since backups are diff-based, the speed of future backups to the same disk will likely be much faster.`,
+        message: `Select a location to back up ${this.serverName}.<br /><br />Internal drives will not be available.<br /><br />Depending on the amount of data in ${this.serverName}, your first backup may take a while. Since backups are diff-based, the speed of future backups to the same disk will likely be much faster.`,
         buttons: ['Dismiss'],
       })
     } else if (this.type === 'restore') {
       alert = await this.alertCtrl.create({
         backdropDismiss: false,
         header: `Backups`,
-        message: `Select a location containing the backup you wish to restore for ${this.app.title}.<br /><br />Restoring ${this.app.title} will re-sync your service with your previous backup. The speed of the restore process depends on the backup size.`,
+        message: `Select a location containing the backup you wish to restore for ${this.serverName}.<br /><br />Restoring ${this.serverName} will re-sync your Embassy services with your previous backup. The speed of the restore process depends on the backup size.`,
         buttons: ['Dismiss'],
       })
     }
@@ -87,7 +92,6 @@ export class AppBackupPage {
   private async presentAlertCreateEncrypted (disk: DiskInfo, partition: DiskPartition): Promise<void> {
     const m = await this.modalCtrl.create({
       componentProps: {
-        app: this.app,
         partition,
       },
       cssClass: 'alertlike-modal',
@@ -108,7 +112,7 @@ export class AppBackupPage {
     const alert = await this.alertCtrl.create({
       backdropDismiss: false,
       header: `Warning`,
-      message: `Restoring ${this.app.title} from "${partition.label || partition.logicalname}" will overwrite its current data.<br /><br />Are you sure you want to continue?`,
+      message: `Restoring ${this.serverName} from "${partition.label || partition.logicalname}" will overwrite its current data.<br /><br />Are you sure you want to continue?`,
       buttons: [
         {
           text: 'Cancel',

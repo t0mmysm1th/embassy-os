@@ -103,23 +103,6 @@
           </ion-label>
         </ion-item>
 
-        <ion-item-divider>Backups</ion-item-divider>
-        <!-- create backup -->
-        <ion-item button [disabled]="[AppStatus.RESTORING_BACKUP, AppStatus.CREATING_BACKUP, AppStatus.INSTALLING, AppStatus.RESTARTING, AppStatus.STOPPING] | includes: vars.status" (click)="presentModalBackup('create')">
-          <ion-icon slot="start" name="save-outline" color="primary"></ion-icon>
-          <ion-label style="display: flex; flex-direction: column;">
-            <ion-text color="primary">Create new Backup</ion-text>
-            <ion-text color="medium" style="font-size: x-small">
-              Last Backup: {{vars.lastBackup ? (vars.lastBackup | date: 'short') : 'never'}}
-            </ion-text>
-          </ion-label>
-        </ion-item>
-        <!-- restore backup -->
-        <ion-item lines="none" button [disabled]="[AppStatus.RESTORING_BACKUP, AppStatus.CREATING_BACKUP, AppStatus.INSTALLING, AppStatus.RESTARTING, AppStatus.STOPPING] | includes: vars.status" (click)="presentModalBackup('restore')">
-          <ion-icon slot="start" name="color-wand-outline" color="primary"></ion-icon>
-          <ion-label><ion-text color="primary">Restore from Backup</ion-text></ion-label>
-        </ion-item>
-
         <ion-item-divider>General</ion-item-divider>
         <!-- instructions -->
         <ion-item button details="true" (click)="checkForUpdates()">

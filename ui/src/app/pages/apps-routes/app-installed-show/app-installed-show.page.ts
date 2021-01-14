@@ -211,20 +211,6 @@ export class AppInstalledShowPage extends Cleanup {
     ).catch(e => this.setError(e))
   }
 
-  async presentModalBackup (type: 'create' | 'restore') {
-    const modal = await this.modalCtrl.create({
-      backdropDismiss: false,
-      component: AppBackupPage,
-      presentingElement: await this.modalCtrl.getTop(),
-      componentProps: {
-        app: peekProperties(this.app),
-        type,
-      },
-    })
-
-    await modal.present()
-  }
-
   async presentAlertStopBackup (): Promise<void> {
     const app = peekProperties(this.app)
 

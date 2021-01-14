@@ -43,8 +43,10 @@ export abstract class ApiService {
   abstract startApp (appId: string): Promise<Unit>
   abstract stopApp (appId: string, dryRun?: boolean): Promise<{ breakages: DependentBreakage[] }>
   abstract restartApp (appId: string): Promise<Unit>
-  abstract createAppBackup (appId: string, logicalname: string, password?: string): Promise<Unit>
-  abstract restoreAppBackup (appId: string, logicalname: string, password?: string): Promise<Unit>
+  abstract createServerBackup (logicalname: string, password?: string): Promise<Unit>
+  abstract restoreServerBackup (logicalname: string, password?: string): Promise<Unit>
+  // abstract createAppBackup (appId: string, logicalname: string, password?: string): Promise<Unit>
+  // abstract restoreAppBackup (appId: string, logicalname: string, password?: string): Promise<Unit>
   abstract stopAppBackup (appId: string): Promise<Unit>
   abstract patchAppConfig (app: AppInstalledPreview, config: object, dryRun?: boolean): Promise<{ breakages: DependentBreakage[] }>
   abstract postConfigureDependency (dependencyId: string, dependentId: string, dryRun?: boolean): Promise< {config: object, breakages: DependentBreakage[] }>
@@ -81,10 +83,8 @@ export module ReqRes {
   export type PostInstallAppReq = { version: string }
   export type PostInstallAppRes = ApiAppInstalledFull & { breakages: DependentBreakage[] }
   export type PostUpdateAgentReq = { version: string }
-  export type PostAppBackupCreateReq = { logicalname: string, password: string }
-  export type PostAppBackupCreateRes = Unit
-  export type PostAppBackupRestoreReq = { logicalname: string, password: string }
-  export type PostAppBackupRestoreRes = Unit
+  export type PostServerBackupCreateReq = { logicalname: string, password: string }
+  export type PostServerBackupRestoreReq = { logicalname: string, password: string }
   export type PostAppBackupStopRes = Unit
   export type PatchAppConfigReq = { config: object }
   export type PatchServerConfigReq = { value: string }

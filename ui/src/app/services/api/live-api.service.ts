@@ -152,13 +152,23 @@ export class LiveApiService extends ApiService {
       .then(() => ({ } as any))
   }
 
-  async createAppBackup (appId: string, logicalname: string, password?: string): Promise<Unit> {
-    const data: ReqRes.PostAppBackupCreateReq = {
-      password: password || undefined,
+  async createServerBackup (logicalname: string, password: string): Promise<Unit> {
+    const data: ReqRes.PostServerBackupCreateReq = {
+      password,
       logicalname,
     }
-    return this.authRequest<ReqRes.PostAppBackupCreateRes>({ method: Method.POST, url: `/apps/${appId}/backup`, data, readTimeout: 60000 })
+    return this.authRequest<Unit>({ method: Method.POST, url: `/server/backup`, data, readTimeout: 60000 })
       .then(() => this.appModel.update({ id: appId, status: AppStatus.CREATING_BACKUP }))
+      .then(() => ({ }))
+  }
+
+  async restoreAppBackup (logicalname: string, password: string): Promise<Unit> {
+    const data: ReqRes.PostServerBackupRestoreReq = {
+      password,
+      logicalname,
+    }
+    return this.authRequest<Unit>({ method: Method.POST, url: `/server/backup/restore`, data, readTimeout: 60000 })
+      .then(() => this.appModel.update({ id: appId, status: AppStatus.RESTORING_BACKUP }))
       .then(() => ({ }))
   }
 
@@ -168,15 +178,7 @@ export class LiveApiService extends ApiService {
       .then(() => ({ }))
   }
 
-  async restoreAppBackup (appId: string, logicalname: string, password?: string): Promise<Unit> {
-    const data: ReqRes.PostAppBackupRestoreReq = {
-      password: password || undefined,
-      logicalname,
-    }
-    return this.authRequest<ReqRes.PostAppBackupRestoreRes>({ method: Method.POST, url: `/apps/${appId}/backup/restore`, data, readTimeout: 60000 })
-      .then(() => this.appModel.update({ id: appId, status: AppStatus.RESTORING_BACKUP }))
-      .then(() => ({ }))
-  }
+  
 
   async patchAppConfig (app: AppInstalledPreview, config: object, dryRun = false): Promise<{ breakages: DependentBreakage[] }> {
     const data: ReqRes.PatchAppConfigReq = {

@@ -1,15 +1,16 @@
 import { Component } from '@angular/core'
 import { LoadingOptions } from '@ionic/core'
 import { ServerModel, ServerStatus } from 'src/app/models/server-model'
-import { AlertController } from '@ionic/angular'
+import { AlertController, ModalController } from '@ionic/angular'
 import { S9Server } from 'src/app/models/server-model'
 import { ApiService } from 'src/app/services/api/api.service'
 import { SyncDaemon } from 'src/app/services/sync.service'
 import { Subscription, Observable } from 'rxjs'
-import { PropertySubject, toObservable } from 'src/app/util/property-subject.util'
+import { peekProperties, PropertySubject, toObservable } from 'src/app/util/property-subject.util'
 import { doForAtLeast } from 'src/app/util/misc.util'
 import { LoaderService } from 'src/app/services/loader.service'
 import { Emver } from 'src/app/services/emver.service'
+import { AppBackupPage } from 'src/app/modals/app-backup/app-backup.page'
 
 @Component({
   selector: 'server-show',
@@ -31,6 +32,7 @@ export class ServerShowPage {
   constructor (
     private readonly serverModel: ServerModel,
     private readonly alertCtrl: AlertController,
+    private readonly modalCtrl: ModalController,
     private readonly loader: LoaderService,
     private readonly apiService: ApiService,
     private readonly syncDaemon: SyncDaemon,
@@ -169,6 +171,19 @@ export class ServerShowPage {
       ],
     })
     await alert.present()
+  }
+
+  async presentModalBackup (type: 'create' | 'restore') {
+    const modal = await this.modalCtrl.create({
+      backdropDismiss: false,
+      component: AppBackupPage,
+      presentingElement: await this.modalCtrl.getTop(),
+      componentProps: {
+        type,
+      },
+    })
+
+    await modal.present()
   }
 
   private async updateEmbassyOS (versionLatest: string) {
