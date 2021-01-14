@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core'
 import { HttpService, Method, HttpOptions } from '../http.service'
 import { AppModel, AppStatus } from '../../models/app-model'
 import { AppAvailablePreview, AppAvailableFull, AppInstalledFull, AppInstalledPreview, DependentBreakage, AppAvailableVersionSpecificInfo } from '../../models/app-types'
-import { S9Notification, SSHFingerprint, ServerModel, DiskInfo } from '../../models/server-model'
+import { S9Notification, SSHFingerprint, ServerModel, DiskInfo, ServerStatus } from '../../models/server-model'
 import { ApiService, ReqRes  } from './api.service'
 import { ApiServer, Unit } from './api-types'
 import { HttpErrorResponse } from '@angular/common/http'
@@ -158,7 +158,7 @@ export class LiveApiService extends ApiService {
       logicalname,
     }
     return this.authRequest<Unit>({ method: Method.POST, url: `/server/backup`, data, readTimeout: 60000 })
-      .then(() => this.appModel.update({ id: appId, status: AppStatus.CREATING_BACKUP }))
+      .then(() => this.serverModel.update({ status: ServerStatus.CREATING_BACKUP }))
       .then(() => ({ }))
   }
 
@@ -168,7 +168,6 @@ export class LiveApiService extends ApiService {
       logicalname,
     }
     return this.authRequest<Unit>({ method: Method.POST, url: `/server/backup/restore`, data, readTimeout: 60000 })
-      .then(() => this.appModel.update({ id: appId, status: AppStatus.RESTORING_BACKUP }))
       .then(() => ({ }))
   }
 

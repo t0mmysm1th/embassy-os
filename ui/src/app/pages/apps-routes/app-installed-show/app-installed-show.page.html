@@ -62,9 +62,6 @@
           <ion-button  *ngIf="[AppStatus.RUNNING, AppStatus.CRASHED, AppStatus.PAUSED, AppStatus.RESTARTING] | includes: vars.status" expand="block" fill="outline" (click)="stop()">
             Stop
           </ion-button>
-          <ion-button  *ngIf="vars.status === AppStatus.CREATING_BACKUP" expand="block" fill="outline" (click)="presentAlertStopBackup()">
-            Stop Backup
-          </ion-button>
           <ion-button  *ngIf="vars.status === AppStatus.DEAD" expand="block" fill="outline" (click)="uninstall()">
             Force Uninstall
           </ion-button>
@@ -115,7 +112,7 @@
           <ion-label><ion-text color="primary">Instructions</ion-text></ion-label>
         </ion-item>
         <!-- config -->
-        <ion-item [disabled]="[AppStatus.CREATING_BACKUP, AppStatus.RESTORING_BACKUP, AppStatus.INSTALLING, AppStatus.DEAD] | includes: vars.status" [routerLink]="['config']">
+        <ion-item [disabled]="[AppStatus.INSTALLING, AppStatus.DEAD] | includes: vars.status" [routerLink]="['config']">
           <ion-icon slot="start" name="construct-outline" color="primary"></ion-icon>
           <ion-label><ion-text color="primary">Config</ion-text></ion-label>
         </ion-item>
@@ -147,7 +144,7 @@
 
         <ion-item-divider></ion-item-divider>
 
-        <ng-container *ngIf="vars.status !== AppStatus.INSTALLING && vars.status !== 'CREATING_BACKUP'">
+        <ng-container *ngIf="vars.status !== AppStatus.INSTALLING">
           <!-- uninstall -->
           <ion-item style="--background: transparent" button (click)="uninstall()">
             <ion-icon slot="start" name="trash-outline" color="medium"></ion-icon>

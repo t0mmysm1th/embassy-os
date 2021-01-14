@@ -3,7 +3,7 @@ import { ModalController, AlertController, LoadingController, IonicSafeString, T
 import { AppModel, AppStatus } from 'src/app/models/app-model'
 import { AppInstalledFull } from 'src/app/models/app-types'
 import { ApiService } from 'src/app/services/api/api.service'
-import { DiskInfo, DiskPartition, S9Server, ServerModel } from 'src/app/models/server-model'
+import { DiskInfo, DiskPartition, S9Server, ServerModel, ServerStatus } from 'src/app/models/server-model'
 import { pauseFor } from 'src/app/util/misc.util'
 import { concatMap } from 'rxjs/operators'
 import { AppBackupConfirmationComponent } from 'src/app/components/app-backup-confirmation/app-backup-confirmation.component'
@@ -165,8 +165,8 @@ export class AppBackupPage extends Cleanup {
     await loader.present()
 
     try {
-      await this.apiService.restoreAppBackup(this.app.id, partition.logicalname, password)
-      this.appModel.update({ id: this.app.id, status: AppStatus.RESTORING_BACKUP })
+      await this.apiService.restoreServerBackup(partition.logicalname, password)
+      this.serverModel.update({ status: ServerStatus.RESTORING_BACKUP })
       await this.dismiss()
     } catch (e) {
       console.error(e)
@@ -186,8 +186,8 @@ export class AppBackupPage extends Cleanup {
     await loader.present()
 
     try {
-      await this.apiService.createAppBackup(this.app.id, partition.logicalname, password)
-      this.appModel.update({ id: this.app.id, status: AppStatus.CREATING_BACKUP })
+      await this.apiService.createServerBackup(partition.logicalname, password)
+      this.serverModel.update({ status: ServerStatus.CREATING_BACKUP })
       if (eject) {
         this.appModel.watchForBackup(this.app.id).pipe(concatMap(
           () => this.apiService.ejectExternalDisk(disk.logicalname),

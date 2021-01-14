@@ -9,6 +9,8 @@ export const ServerStatusRendering: {
   [ServerStatus.NEEDS_CONFIG]: { display: 'Needs Config', color: 'warning', showDots: false },
   [ServerStatus.RUNNING]: { display: 'Connected', color: 'success', showDots: false },
   [ServerStatus.UPDATING]: { display: 'Updating', color: 'primary', showDots: true },
+  [ServerStatus.CREATING_BACKUP]: { display: 'Backing Up', color: 'dark', showDots: true },
+  [ServerStatus.RESTORING_BACKUP]: { display: 'Restoring', color: 'dark', showDots: true },
 }
 
 export const AppStatusRendering: {
@@ -21,8 +23,6 @@ export const AppStatusRendering: {
   [AppStatus.RUNNING]: { display: 'Running', color: 'success', showDots: false },
   [AppStatus.UNREACHABLE]: { display: 'Unreachable', color: 'danger', showDots: false },
   [AppStatus.STOPPED]: { display: 'Not Running', color: 'medium', showDots: false },
-  [AppStatus.CREATING_BACKUP]: { display: 'Backing Up', color: 'dark', showDots: true },
-  [AppStatus.RESTORING_BACKUP]: { display: 'Restoring', color: 'dark', showDots: true },
   [AppStatus.INSTALLING]: { display: 'Installing', color: 'primary', showDots: true },
   [AppStatus.DEAD]: { display: 'Dead', color: 'danger', showDots: false },
   [AppStatus.BROKEN_DEPENDENCIES]: { display: 'Dependency Issue', color: 'warning', showDots: false },

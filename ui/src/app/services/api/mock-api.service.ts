@@ -132,21 +132,15 @@ export class MockApiService extends ApiService {
     return { }
   }
 
-  async createAppBackup (appId: string, logicalname: string, password = ''): Promise<EmptyResponse> {
+  async createServerBackup (logicalname: string, password = ''): Promise<EmptyResponse> {
     await mockCreateAppBackup()
-    this.appModel.update({ id: appId, status: AppStatus.CREATING_BACKUP })
+    this.serverModel.update({ status: ServerStatus.CREATING_BACKUP })
     return { }
   }
 
-  async stopAppBackup (appId: string): Promise<EmptyResponse> {
-    await mockStopAppBackup()
-    this.appModel.update({ id: appId, status: AppStatus.STOPPED })
-    return { }
-  }
-
-  async restoreAppBackup (appId: string, logicalname: string, password?: string): Promise<EmptyResponse> {
+  async restoreServerBackup (logicalname: string, password?: string): Promise<EmptyResponse> {
     await mockCreateAppBackup()
-    this.appModel.update({ id: appId, status: AppStatus.RESTORING_BACKUP })
+    this.serverModel.update({ status: ServerStatus.RESTORING_BACKUP })
     return { }
   }
 

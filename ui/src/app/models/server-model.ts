@@ -1,10 +1,10 @@
 import { Injectable } from '@angular/core'
-import { Subject, BehaviorSubject } from 'rxjs'
+import { Subject, BehaviorSubject, Observable } from 'rxjs'
 import { PropertySubject, peekProperties, initPropertySubject } from '../util/property-subject.util'
 import { AppModel } from './app-model'
 import { ConfigService } from 'src/app/services/config.service'
 import { Storage } from '@ionic/storage'
-import { throttleTime, delay } from 'rxjs/operators'
+import { throttleTime, delay, pairwise, filter, take, mapTo } from 'rxjs/operators'
 import { StorageKeys } from './storage-keys'
 
 @Injectable({
@@ -62,6 +62,16 @@ export class ServerModel {
     this.lastUpdateTimestamp = timestamp
   }
 
+  watchForBackupCompletion (): Observable<true> {
+    return this.watch().status.pipe(
+      filter(s => s !== ServerStatus.UNREACHABLE),
+      pairwise(),
+      filter( ([old, _]) => old === ServerStatus.CREATING_BACKUP),
+      take(1),
+      mapTo(true),
+    )
+  }
+
   // cache mgmt
   clear () {
     this.update(peekProperties(this.defaultEmbassy()))
@@ -105,6 +115,7 @@ export class ServerModel {
       wifi: { ssids: [], current: undefined },
       ssh: [],
       notifications: [],
+      backingUp: false,
     })
   }
 }
@@ -122,6 +133,7 @@ export interface S9Server {
   wifi: { ssids: string[], current: string }
   ssh: SSHFingerprint[]
   notifications: S9Notification[]
+  backingUp: boolean
 }
 
 export interface S9Notification {
@@ -172,4 +184,6 @@ export enum ServerStatus {
   UPDATING = 'UPDATING',
   NEEDS_CONFIG = 'NEEDS_CONFIG',
   RUNNING = 'RUNNING',
+  CREATING_BACKUP = 'CREATING_BACKUP',
+  RESTORING_BACKUP = 'RESTORING_BACKUP',
 }

@@ -7,6 +7,7 @@ import { filter, throttleTime, delay, pairwise, mapTo, take } from 'rxjs/operato
 import { Storage } from '@ionic/storage'
 import { StorageKeys } from './storage-keys'
 import { AppInstalledFull, AppInstalledPreview } from './app-types'
+import { ServerStatus } from './server-model'
 
 @Injectable({
   providedIn: 'root',
@@ -67,7 +68,7 @@ export class AppModel extends MapSubject<AppInstalledFull> {
 
     return toWatch.status.pipe(
       pairwise(),
-      filter( ([old, _]) => old === AppStatus.CREATING_BACKUP),
+      filter( ([old, _]) => old === ServerStatus.CREATING_BACKUP),
       take(1),
       mapTo(appId),
     )
@@ -163,8 +164,6 @@ export enum AppStatus {
   NEEDS_CONFIG = 'NEEDS_CONFIG',
   RUNNING = 'RUNNING',
   STOPPED = 'STOPPED',
-  CREATING_BACKUP = 'CREATING_BACKUP',
-  RESTORING_BACKUP = 'RESTORING_BACKUP',
   CRASHED = 'CRASHED',
   REMOVING = 'REMOVING',
   DEAD = 'DEAD',
