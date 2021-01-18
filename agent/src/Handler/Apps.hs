@@ -15,13 +15,13 @@ import           Startlude               hiding ( modify
                                                 , catchError
                                                 , forkFinally
                                                 , empty
+                                                , trace
                                                 )
 
 import           Control.Carrier.Reader
 import           Control.Carrier.Error.Church
 import           Control.Carrier.Lift
-import qualified Control.Concurrent.Async.Lifted
-                                               as LAsync
+import qualified Control.Concurrent.Async.Lifted as LAsync
 import qualified Control.Concurrent.Lifted     as Lifted
 import qualified Control.Exception.Lifted      as Lifted
 import           Control.Concurrent.STM.TVar
@@ -49,6 +49,7 @@ import           Data.Singletons.Prelude.List   ( Elem )
 import           Database.Persist
 import           Database.Persist.Sql           ( ConnectionPool )
 import           Database.Persist.Sqlite        ( runSqlPool )
+import           Debug.Trace                ( trace )
 import           Exinst
 import           Network.HTTP.Types
 import           Yesod.Core.Content
@@ -146,8 +147,8 @@ getAvailableAppsLogic = do
     let installCache = inspect SInstalling jobCache
     (Reg.AppManifestRes apps, serverApps) <- LAsync.concurrently Reg.getAppManifest
                                                                  (AppMgr2.list [AppMgr2.flags|-s -d|])
-    let remapped = remapAppMgrInfo jobCache serverApps
-    pure $ foreach apps $ \app@StoreApp { storeAppId } ->
+    let remapped = remapAppMgrInfo jobCache (trace "Available Apps: serverApps" serverApps)
+    pure $ foreach (trace "Available Apps: apps" apps) $ \app@StoreApp { storeAppId } ->
         let installing =
                 (   (storeAppVersionInfoVersion . snd . installInfo &&& const (AppStatusTmp Installing))
                 .   fst
@@ -290,14 +291,14 @@ getInstalledAppByIdLogic appId = do
                 , appInstalledFullUninstallWarning       = Nothing
                 }
     serverApps <- AppMgr2.list [AppMgr2.flags|-s -d|]
-    let remapped = remapAppMgrInfo jobCache serverApps
+    let remapped = remapAppMgrInfo jobCache (trace "Installed App: serverApps" serverApps)
     appManifestFetchCached <- cached Reg.getAppManifest
     let
         installed = do
-            (status, version, AppMgr2.InfoRes {..}) <- hoistMaybe (HM.lookup appId remapped)
-            manifest' <- lift $ LAsync.async $ AppMgr2.infoResManifest <<$>> AppMgr2.info [AppMgr2.flags|-M|] appId
-            instructions'                           <- lift $ LAsync.async $ AppMgr2.instructions appId
-            requirements                            <- LAsync.runConcurrently $ flip
+            (status, version, AppMgr2.InfoRes {..}) <- fmap (trace "Installed App: Map") $ hoistMaybe (HM.lookup appId remapped)
+            manifest' <- fmap (trace "Installed App: resManifest") $ lift $ LAsync.async $ AppMgr2.infoResManifest <<$>> AppMgr2.info [AppMgr2.flags|-M|] appId
+            instructions'                           <- fmap (trace "Installed App: instructions") $ lift $ LAsync.async $ AppMgr2.instructions appId
+            requirements                            <- fmap (trace "Installed App: requirements") $ LAsync.runConcurrently $ flip
                 HML.traverseWithKey
                 (HML.filter AppMgr2.dependencyInfoRequired infoResDependencies)
                 \depId depInfo -> LAsync.Concurrently $ do
