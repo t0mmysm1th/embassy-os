@@ -196,10 +196,7 @@ pub async fn print_instructions<P: AsRef<Path>>(path: P) -> Result<(), Error> {
 }
 
 pub mod commands {
-    use clap::ArgMatches;
-    use futures::FutureExt;
-
-    use crate::api::{Api, Argument, ClapImpl};
+    use crate::api::prelude::*;
     use crate::{Error, ResultExt};
 
     #[derive(Debug, Default, Clone, Copy)]

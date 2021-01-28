@@ -567,3 +567,31 @@ pub async fn install_v0<R: AsyncRead + Unpin + Send + Sync>(
 
     Ok(())
 }
+
+pub mod commands {
+    use crate::api::prelude::*;
+    use crate::{Error, ResultExt};
+
+    pub struct Install;
+    impl Api for Install {
+        fn name(&self) -> &'static str {
+            "install"
+        }
+        fn clap_impl<'a>(
+            &'a self,
+            full_command: &'a [&'a dyn Api],
+            matches: &'a ArgMatches,
+        ) -> ClapImpl<'a> {
+            Some(
+                forward_to_hyper_impl(
+                    self,
+                    full_command,
+                    hyper::Method::POST,
+                    matches,
+                    None::<&()>,
+                )
+                .boxed(),
+            )
+        }
+    }
+}
