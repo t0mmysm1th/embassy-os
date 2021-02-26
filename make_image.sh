@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#
 mv buster.img embassy.img
 product_key=$(cat product_key)
 loopdev=$(losetup -f -P embassy.img --show)
