@@ -5,7 +5,7 @@ APPMGR_RELEASE_SRC := appmgr/target/armv7-unknown-linux-gnueabihf/release/appmgr
 LIFELINE_RELEASE_SRC := lifeline/target/armv7-unknown-linux-gnueabihf/release/lifeline
 
 ifeq ($(UNAME), armv7l)
-	EMBASSY_SRC := buster.img product_key ui/www agent/dist/agent agent/config/agent.service lifeline/lifeline.service setup.sh setup.service docker-daemon.json
+	EMBASSY_SRC := buster.img product_key appmgr/target/release/appmgr ui/www agent/dist/agent agent/config/agent.service lifeline/target/release/lifeline lifeline/lifeline.service setup.sh setup.service docker-daemon.json
 	APPMGR_RELEASE_SRC := appmgr/target/release/appmgr
 	LIFELINE_RELEASE_SRC := lifeline/target/release/lifeline
 endif

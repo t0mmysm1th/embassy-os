@@ -83,7 +83,7 @@
       ```
    1. Confirm your cpu info
       ```
-      cat /proc/cpuinfo
+      cat /proc/cpuinfo | grep Hardware
       ```
    1. If your "Hardware" is [BCM2711](https://www.raspberrypi.org/documentation/hardware/raspberrypi/bcm2711/README.md) then:
       1. Change `C compiler flags` to `-marm -mcpu=cortex-a72` in the GHC settings:
@@ -128,19 +128,7 @@
       cargo --version
       ```
 
-7. Finally, getting to build the **.img**
-   1. Build `appmgr` & `lifeline`
-      ```
-      cd ~/embassy-os/appmgr
-      cargo update
-      
-      cargo build --release --features=production
-      /usr/bin/arm-linux-gnueabihf-strip ~/embassy-os/appmgr/target/release/appmgr
-      
-      cd ~/embassy-os/lifeline && cargo build --release
-      /usr/bin/arm-linux-gnueabihf-strip ~/embassy-os/lifeline/target/release/lifeline
-      ```
-   1. Build the `embassy.img`
+7. Finally, build the **embassy.img**
       ```
       cd ~/embassy-os
       make
