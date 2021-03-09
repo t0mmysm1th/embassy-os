@@ -1,10 +1,8 @@
 #!/bin/bash
 apt update
-apt remove -y needrestart
 apt install -y libsecp256k1-0
 apt install -y tor
-apt install -y docker.io
-apt remove -y needrestart
+apt install -y docker.io needrestart-
 apt install -y iotop
 apt install -y bmon
 apt install -y libavahi-client3
