@@ -1,5 +1,4 @@
 #!/bin/bash
-#
 mv buster.img embassy.img
 product_key=$(cat product_key)
 loopdev=$(losetup -f -P embassy.img --show)
@@ -11,6 +10,10 @@ mount "${loopdev}p2" "${root_mountpoint}"
 mount "${loopdev}p1" "${boot_mountpoint}"
 mkdir -p "${root_mountpoint}/root/agent"
 mkdir -p "${root_mountpoint}/etc/docker"
+mkdir -p "${root_mountpoint}/home/pi/.ssh"
+echo -n "" > "${root_mountpoint}/home/pi/.ssh/authorized_keys"
+chown -R pi:pi "${root_mountpoint}/home/pi/.ssh"
+echo -n "" > "${boot_mountpoint}/ssh"
 echo "${product_key}" > "${root_mountpoint}/root/agent/product_key"
 echo -n "start9-" > "${root_mountpoint}/etc/hostname"
 echo -n "${product_key}" | shasum -t -a 256 | cut -c1-8 >> "${root_mountpoint}/etc/hostname"
@@ -30,13 +33,9 @@ chmod 700 "${root_mountpoint}/root/setup.sh"
 cp setup.service "${root_mountpoint}/etc/systemd/system/setup.service"
 cp lifeline/lifeline.service "${root_mountpoint}/etc/systemd/system/lifeline.service"
 cp agent/config/agent.service "${root_mountpoint}/etc/systemd/system/agent.service"
-mkdir -p "${root_mountpoint}/home/pi/.ssh"
-echo -n "" > "${root_mountpoint}/home/pi/.ssh/authorized_keys"
-chown -R pi:pi "${root_mountpoint}/home/pi/.ssh"
 cat "${boot_mountpoint}/config.txt" | grep -v "dtoverlay=" > "${boot_mountpoint}/config.txt.tmp"
 echo "dtoverlay=pwm-2chan" >> "${boot_mountpoint}/config.txt.tmp"
 mv "${boot_mountpoint}/config.txt.tmp" "${boot_mountpoint}/config.txt"
-echo -n "" > "${boot_mountpoint}/ssh"
 umount "${root_mountpoint}"
 rm -r "${root_mountpoint}"
 umount "${boot_mountpoint}"
