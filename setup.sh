@@ -16,7 +16,7 @@ systemctl enable agent
 systemctl enable ssh
 systemctl enable avahi-daemon
 passwd -l root
-passwd -l pi
+#passwd -l pi
 sync
 systemctl disable setup.service
 reboot
