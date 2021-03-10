@@ -41,7 +41,7 @@ product_key:
 
 $(APPMGR_RELEASE_SRC): $(APPMGR_SRC)
 ifeq ($(UNAME), armv7l)
-	cd appmgr && cargo build --release --features=production
+	cd appmgr && cargo update && cargo build --release --features=production
 	arm-linux-gnueabihf-strip appmgr/target/release/appmgr
 else
 	docker run --rm -it -v ~/.cargo/registry:/root/.cargo/registry -v "$(shell pwd)":/home/rust/src start9/rust-arm-cross:latest sh -c "(cd appmgr && cargo build --release --features=production)"
