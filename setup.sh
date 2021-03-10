@@ -1,12 +1,12 @@
 #!/bin/bash
-apt update
-apt install -y libsecp256k1-0
-apt install -y tor
-apt install -y docker.io needrestart-
-apt install -y iotop
-apt install -y bmon
-apt install -y libavahi-client3
-apt autoremove -y
+apt-get update -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false
+apt-get install -y libsecp256k1-0
+apt-get install -y tor
+apt-get install -y docker.io needrestart-
+apt-get install -y iotop
+apt-get install -y bmon
+apt-get install -y libavahi-client3
+apt-get autoremove -y
 mkdir -p /root/volumes
 mkdir -p /root/tmp/appmgr
 mkdir -p /root/agent
@@ -16,7 +16,7 @@ systemctl enable agent
 systemctl enable ssh
 systemctl enable avahi-daemon
 passwd -l root
-#passwd -l pi
+passwd -l pi
 sync
 systemctl disable setup.service
 reboot
