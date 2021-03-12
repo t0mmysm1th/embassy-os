@@ -128,7 +128,14 @@
       cargo --version
       ```
 
-7. Finally, build the **embassy.img**
+7. Finally, getting to build the **.img**
+   1. At this stage you hava a working development environment to build your **embassy.img**.
+      Before you do that you can choose to enable SSH login for user `pi` in case something will go wrong or just skip to the next step.
+         ```
+         sed -e '/passwd -l pi/ s/^#*/#/' -i setup.sh
+         ```
+         > :warning: Default password for user `pi` is `raspberry`, change it the next you login!
+   1. Build the `embassy.img`
       ```
       cd ~/embassy-os
       make
@@ -146,24 +153,6 @@
 
 9. Prepare for initial setup
    1. Boot raspi using flashed microSD
-   1. Connect via SSH with user `pi` and password `raspberry` and use `sudo raspi-config` to change the password
-   1. Prep & run `/root/setup.sh`
-      > :information_source: Here we also remove line `passwd -l pi` (this will allow you to ssh into raspi in the event that setup failed)
-      ```
-      #We remove specific lines
-      sudo grep -Ev 'systemctl disable setup.service|reboot|passwd -l pi' /root/setup.sh | sudo tee /root/setup.sh.tmp >/dev/null
-      sudo cat /root/setup.sh.tmp | sudo tee /root/setup.sh >/dev/null
-      
-      #Run setup.sh
-      sudo sh /root/setup.sh
-      ```
-   1. Enable services (unit files were only copied over and still need to be enabled)
-      ```
-      sudo systemctl enable lifeline.service
-      sudo systemctl enable agent.service
-      
-      sudo reboot
-      ```
    1. After a few minutes, the raspi should reboot itself and make it's first sounds.
       > :information_source: If needed, you can check the `agent` log with: `journalctl -u agent -ef`
       * Short Beep = Raspi finished reboot/startup sequence.
@@ -173,4 +162,3 @@
       * Beethoven = Update failed :(
    1. Proceed with the [initial setup process of EmbassyOS](https://docs.start9labs.com/user-manual/initial-setup.html)
    1. If all went well you can safely flash `embassy.img` to an SSD/NVMe and repeat step 9
-
