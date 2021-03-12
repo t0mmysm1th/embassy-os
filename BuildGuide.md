@@ -131,15 +131,17 @@
 7. Finally, getting to build the **.img**
    1. At this stage you hava a working development environment to build your **embassy.img**.
       Before you do that you can choose to enable SSH login for user `pi` in case something will go wrong or just skip to the next step.
-         ```
-         sed -e '/passwd -l pi/ s/^#*/#/' -i setup.sh
-         ```
-         > :warning: Default password for user `pi` is `raspberry`, change it the next you login!
+      ```
+      cd ~/embassy-os
+      sed -e '/passwd -l pi/ s/^#*/#/' -i setup.sh
+      ```
+      > :bangbang: Default password for user `pi` is `raspberry`, change it the next you login.
    1. Build the `embassy.img`
       ```
       cd ~/embassy-os
       make
       
+      #Depending from your hadware this can take 1-2h+
       #Wait for the "DONE!" message and take note of your product_key
       exit
       ```
