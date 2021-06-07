@@ -126,7 +126,7 @@
       ```
 
 7. Finally, getting to build the **.img**
-   1. At this stage you hava a working development environment to build your **embassy.img**.
+   1. At this stage you have a working development environment to build your **embassy.img**.
       Before you do that you can choose to enable SSH login for user `pi` in case something will go wrong or just skip to the next step.
       ```
       cd ~/embassy-os
